@@ -1,0 +1,145 @@
+version: {date: 20211210, name: 'SPLAT_shapedbandfile'}
+config:
+  dnu: 0.1 # GHz frequency resolution for integrals
+# We set dust and synchrotron very small so they are ignored.  Zero eventually throws an error.
+sources:
+  cmb: {source_type: blackbody, T: 2.726, emiss: 1.0}
+  # dust: {source_type: greybody, amplitude: 1e-5, scale_frequency: 353.0, scale_temperature: 19.7}
+  # synchrotron:  {source_type: powerlaw, spectral_index: -3.0, amplitude: 1e-10, scale_frequency: 30.0}
+  atmosphere:
+    # This shows how to do it with the bolo-calc hdf5 file.
+    source_type: hdf5  #
+    file: 'atmos/atm_20201217.hdf5'
+    site: 'Pole'
+    pwv: 321      # microns, from 0 to 8000
+    elevation: 50  # degrees, integer from 1 to 90
+optics_defaults: {temperature: 250.0, reflection: 0.0, scatter_frac: 0.0, spillover: 0.0, absorption: 0.0}
+optical_elements:
+  # requires python 3.7 or later, because we assume dict{} is ordered.
+  # This list of elements starts with the one closest to the sky, and moves toward the detector.
+  primary:      {obj_type: Mirror, conductivity: 36.9E6, surface_rough: 4.0E-6}  # spill = gaps here.
+  secondary:    {obj_type: Mirror, conductivity: 36.9E6, surface_rough: 4.0E-6}
+  tertiary:     {obj_type: Mirror, conductivity: 36.9E6, surface_rough: 4.0E-6, spillover: 0.02}
+  #window:    {obj_type: LossTangent, reflection: 0.003, thickness: 0.030, index: 1.525, loss_tangent: 2.5E-4}
+  window:       {obj_type: LossTangent, reflection: 0.01, thickness: 0.003, index: 1.525, loss_tangent: 3.0E-4}
+  # IR shaders:  emissivity proportional to frequency, pinned to 90GHz value derived from Bicep3
+  RTMLI_10 :    {obj_type: Bespoke,    temperature: 150.0, absorption: [0.00399, 0.00399, 0.00399, 0.00399, 0.00399, 0.00435, 0.0083 ]}  # 10 layers
+  alumina_filt: {obj_type: LossTangent, temperature: 50.0, reflection: 0.02, thickness: 0.01, index: 3.1, loss_tangent: 3.0E-4}
+  nylon_filt:   {obj_type: Bespoke,     temperature:  4.0, reflection: 0.01, absorption: [0.0001, 0.0003, 0.0007, 0.0068, 0.0237, 0.0698, 0.123 ]}
+  fieldlens:    {obj_type: LossTangent, temperature: 4.0,  reflection: 0.006, thickness: 0.01, index: 3.41, loss_tangent: 0.5E-4}
+  colimlens:    {obj_type: LossTangent, temperature: 4.0,  reflection: 0.006, thickness: 0.01, index: 3.41, loss_tangent: 0.5E-4}
+  lowpass:      {obj_type: Bespoke,     temperature: 1.0,  absorption: 0.01, reflection: 0.05}
+  lyot:         {obj_type: ApertureStop, temperature: 1.0}
+  objlens:      {obj_type: LossTangent, temperature: 1.0,  reflection: 0.006, thickness: 0.01, index: 3.41, loss_tangent: 0.5E-4}
+bolo_config:
+  # For aperture stop calcs
+  waist_factor: 3.0
+  f_number: 1.9
+  #
+  N_polarizations: 1
+  #
+  AOmega_method: ModeCount   # or "Fixed"
+  N_modes: 1  # required if method == "ModeCount"
+  #
+  psat_method: specified # or "from_optical_power", in which case psat = P_optical * psat_factor
+  psat_factor: None  # must a number if psat_method is "from_optical_power"
+  beta: 2.7   # this is beta = n-1. bolo-calc called it "carrier index". Note that G_dynamic is found from psat, T_c, and carrier_index
+  #
+  T_bath: 0.1
+  T_c: 0.16
+  R_bolo: 0.008   # as biased in operation, ie less than R_normal
+  yield: 0.8
+readout:
+  method: 'fraction'  #in anticipation of getting NEI number/formula.
+channels:
+  ULF:
+    chnum: 0  # This sets the order of lists in optical elements, must start at zero and increment from there.
+    band_center:  20.0  # not used
+    nu_low: 17.5        # if a band_response file is given, these set the low and high limits of integration.
+    nu_high: 22.5
+    read_frac: 0.05
+    band_response : {method: flat}
+    #band_response : {method: bandfile, fname : 'det_bands/chlat_20210115_bands/ULF.txt' }
+    det_eff: 1.0 #0.65
+    psat: 0.40e-12  # see psat_method above.
+    horn_diameter: 21.1e-3   # meters
+    pixel_spacing: 21.1e-3
+    num_det_per_wafer: 54
+  LF_1:
+    chnum: 1  # This sets the order of lists in optical elements, must start at zero and increment from there.
+    band_center:  25.75  # not used
+    nu_low: 15.0 #21.50        # if a band_response file is given, these set the low and high limits of integration.
+    nu_high: 35.0 #30.00
+    read_frac: 0.05
+    #band_response : {method: flat}
+    band_response : {method: bandfile, fname : 'det_bands/chlat_20210115_bands/LF_1.txt' }
+    det_eff: 1.0 #0.63
+    psat: 0.75e-12  # see psat_method above.
+    horn_diameter: 16.1e-3   # meters
+    pixel_spacing: 16.1e-3
+    num_det_per_wafer: 96
+  LF_2:
+    chnum: 2  # This sets the order of lists in optical elements, must start at zero and increment from there.
+    band_center:  38.75  # not used
+    nu_low: 20.0 #29.99        # if a band_response file is given, these set the low and high limits of integration.
+    nu_high: 60.0 #47.51
+    read_frac: 0.05
+    #band_response : {method: flat}
+    band_response : {method: bandfile, fname : 'det_bands/chlat_20210115_bands/LF_2.txt' }
+    det_eff: 1.0 #0.65
+    psat: 4.18e-12  # see psat_method above.
+    horn_diameter: 16.1e-3   # meters
+    pixel_spacing: 16.1e-3
+    num_det_per_wafer: 96
+  MF_1:
+    chnum: 3  # This sets the order of lists in optical elements, must start at zero and increment from there.
+    band_center:  91.5  # not used
+    nu_low: 65.0 #77.0        # if a band_response file is given, these set the low and high limits of integration.
+    nu_high: 125.0 #106.0
+    read_frac: 0.05
+    #band_response : {method: flat}
+    band_response : {method: bandfile, fname : 'det_bands/chlat_20210115_bands/MF_1.txt' }
+    det_eff: 1.0 #0.65
+    psat: 4.60e-12  # see psat_method above.
+    horn_diameter: 5.3e-3   # meters
+    pixel_spacing: 5.3e-3
+    num_det_per_wafer: 864
+  MF_2:
+    chnum: 4  # This sets the order of lists in optical elements, must start at zero and increment from there.
+    band_center:  148.5  # not used
+    nu_low: 110.0 #128.0        # if a band_response file is given, these set the low and high limits of integration.
+    nu_high: 190.0 #169.0
+    read_frac: 0.05
+    #band_response : {method: flat}
+    band_response : {method: bandfile, fname : 'det_bands/chlat_20210115_bands/MF_2.txt' }
+    det_eff: 1.0 #0.68
+    psat: 12.51e-12  # see psat_method above.
+    horn_diameter: 5.3e-3   # meters
+    pixel_spacing: 5.3e-3
+    num_det_per_wafer: 864
+  HF_1:
+    chnum: 5  # This sets the order of lists in optical elements, must start at zero and increment from there.
+    band_center:  227.0  # not used
+    nu_low: 150.0 #197.94        # if a band_response file is given, these set the low and high limits of integration.
+    nu_high: 280.0 #256.06
+    read_frac: 0.05
+    #band_response : {method: flat}
+    band_response : {method: bandfile, fname : 'det_bands/chlat_20210115_bands/UHF_1.txt' }
+    det_eff: 1.0 #0.67
+    psat: 31.70e-12  # see psat_method above.
+    horn_diameter: 5.2e-3   # meters
+    pixel_spacing: 5.2e-3
+    num_det_per_wafer: 938
+  HF_2:
+    chnum: 6  # This sets the order of lists in optical elements, must start at zero and increment from there.
+    band_center:  285.5  # not used
+    nu_low: 230.0 #255.95        # if a band_response file is given, these set the low and high limits of integration.
+    nu_high: 350.0 #315.05
+    read_frac: 0.05
+    #band_response : {method: flat}
+    band_response : {method: bandfile, fname : 'det_bands/chlat_20210115_bands/UHF_2.txt' }
+    det_eff: 1.0 #0.66
+    psat: 42.43e-12  # see psat_method above.
+    horn_diameter: 5.2e-3   # meters
+    pixel_spacing: 5.2e-3
+    num_det_per_wafer: 938
