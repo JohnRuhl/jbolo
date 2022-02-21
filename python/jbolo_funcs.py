@@ -207,7 +207,9 @@ def run_optics(sim):
                 if (sim_src['source_type'] == 'hdf5'):
                     # hdf5 file must be organized like the bolo-calc one.
                     tx_atmos, Tb_atmos = get_atmos_from_hdf5(sim,nu_ghz)
-                # Add option for file here.
+
+                # Add option for file here, not done yet.
+                
                 Inu = bb_spec_rad(nu, Tb_atmos, emiss=1.0)
                 Pnu = Inu*AOmega*(sim['bolo_config']['N_polarizations']/2.0)
                 effic = np.copy(tx_atmos)

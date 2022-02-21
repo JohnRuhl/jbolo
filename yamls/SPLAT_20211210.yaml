@@ -20,8 +20,7 @@ optical_elements:
   primary:      {obj_type: Mirror, conductivity: 36.9E6, surface_rough: 4.0E-6}  # spill = gaps here.
   secondary:    {obj_type: Mirror, conductivity: 36.9E6, surface_rough: 4.0E-6}
   tertiary:     {obj_type: Mirror, conductivity: 36.9E6, surface_rough: 4.0E-6, spillover: 0.02}
-  #window:    {obj_type: LossTangent, reflection: 0.003, thickness: 0.030, index: 1.525, loss_tangent: 2.5E-4}
-  window:       {obj_type: LossTangent, reflection: 0.01, thickness: 0.003, index: 1.525, loss_tangent: 3.0E-4}
+  window:       {obj_type: LossTangent, reflection: 0.01, thickness: 0.00475, index: 1.525, loss_tangent: 3.0E-4}
   # IR shaders:  emissivity proportional to frequency, pinned to 90GHz value derived from Bicep3
   RTMLI_10 :    {obj_type: Bespoke,    temperature: 150.0, absorption: [0.00399, 0.00399, 0.00399, 0.00399, 0.00399, 0.00435, 0.0083 ]}  # 10 layers
   alumina_filt: {obj_type: LossTangent, temperature: 50.0, reflection: 0.02, thickness: 0.01, index: 3.1, loss_tangent: 3.0E-4}

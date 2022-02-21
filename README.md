@@ -53,7 +53,9 @@ Or, you can use the following line (modified for your installation) in every not
 
 There are some Aperture function pickle files required to calcualate the horn-horn correlation factors.  Those live in jbolo/ApertureFuncs, and at this point you need to run your python scripts from the jbolo/ directory in order for the relevant physics.py function to find them.
 
-An hdf5 file containing a grid of atmospheric mission vs (frequency, pwv, elevation) is in jbolo/atmos/atm_20201217.hdf5.  The yaml file needs to
+You'll probably need Charlie Hill's hdf5 file containing a grid of atmospheric mission vs (frequency, pwv, elevation).  Download it from
+http://pbfs.physics.berkeley.edu/BoloCalc/ATM/atm_20201217.hdf5
+and put it in jbolo/atmos/atm_20201217.hdf5.  The yaml file needs to
 point to that file in the relevant spot (see example).
 
 I suggest (but it is not required) that output files go in jbolo/outputs.
