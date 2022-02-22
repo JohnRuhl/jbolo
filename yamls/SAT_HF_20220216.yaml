@@ -1,0 +1,77 @@
+version: {date: 20220216, name: 'SAT_HF'}
+config:
+  dnu: 0.1 # GHz frequency resolution for integrals
+# We set dust and synchrotron very small so they are ignored.  Zero eventually throws an error.
+sources:
+  cmb: {source_type: blackbody, T: 2.726, emiss: 1.0}
+  # dust: {source_type: greybody, amplitude: 1e-5, scale_frequency: 353.0, scale_temperature: 19.7}
+  # synchrotron:  {source_type: powerlaw, spectral_index: -3.0, amplitude: 1e-10, scale_frequency: 30.0}
+  atmosphere:
+    # This shows how to do it with the bolo-calc hdf5 file.
+    source_type: hdf5  #
+    file: 'atmos/atm_20201217.hdf5'
+    site: 'Pole'
+    pwv: 321      # microns, from 0 to 8000, 321u for Pole from Kuo's paper, ~8 month observing season, increases to ~370 for 10 months.
+    elevation: 50  # degrees, integer from 1 to 90
+optics_defaults: {temperature: 273.0, reflection: 0.0, scatter_frac: 0.0, spillover: 0.0, absorption: 0.0}
+optical_elements:
+  # requires python 3.7 or later, because we assume dict{} is ordered.
+  # This list of elements starts with the one closest to the sky, and moves toward the detector.
+  baffle:       {obj_type: Bespoke,    absorption: 0.01}
+  window:       {obj_type: LossTangent, reflection: 0.01, thickness: 0.020, index: 1.525, loss_tangent: 3.0E-4}
+  RTMLI_10 :    {obj_type: Bespoke,     temperature: 150.0, absorption: [0.00435, 0.0083] }  # 10 layers
+  alumina_filt: {obj_type: LossTangent, temperature: 50.0, reflection: 0.02, thickness: 0.01, index: 3.1, loss_tangent: 3.0E-4}
+  nylon_filt:   {obj_type: Bespoke,     temperature:  4.0, reflection: 0.01, absorption: [0.0698, 0.123]}
+  lens1:        {obj_type: LossTangent, temperature: 1.0,  reflection: 0.02, thickness: 0.01, index: 3.41, loss_tangent: 0.5E-4}
+  lyot:         {obj_type: ApertureStop, temperature: 1.0}
+  lens2:        {obj_type: LossTangent, temperature: 1.0,  reflection: 0.02, thickness: 0.01, index: 3.41, loss_tangent: 0.5E-4}
+  lowpass:      {obj_type: Bespoke,     temperature: 0.1,  absorption: 0.01, reflection: 0.05}
+bolo_config:
+  # For aperture stop calcs
+  waist_factor: 3.0
+  f_number: 1.55
+  #
+  N_polarizations: 1
+  #
+  AOmega_method: ModeCount   # or "Fixed"
+  N_modes: 1  # required if method == "ModeCount"
+  #
+  # # options:  "from_optical_power", in which case psat = P_optical * psat_factor,
+  # or "specified", in which case it is given for each detector channel explicitly.
+  psat_method: 'from_optical_power'
+  psat_factor: 2.5  # must a number if psat_method is "from_optical_power"
+  beta: 2.7   # this is beta = n-1. bolo-calc called it "carrier index". Note that G_dynamic is found from psat, T_c, and carrier_index
+  #
+  T_bath: 0.1
+  T_c: 0.16
+  R_bolo: 0.008   # as biased in operation, ie less than R_normal
+  yield: 0.8
+readout:
+  method: 'fraction'  #in anticipation of getting NEI number/formula.
+channels:
+  HF_1:
+    chnum: 0  # This sets the order of lists in optical elements, must start at zero and increment from there.
+    band_center:  227.0  # not used
+    nu_low: 197.94        # if a band_response file is given, these set the low and high limits of integration.
+    nu_high: 256.06
+    read_frac: 0.05
+    band_response : {method: flat}
+    #band_response : {method: bandfile, fname : spt3g_90_pixelband.txt }
+    det_eff: 0.67
+    #psat: 1.0e-12  # see psat_method above.
+    horn_diameter: 5.2e-3   # meters
+    pixel_spacing: 5.2e-3
+    num_det_per_wafer: 938
+  HF_2:
+    chnum: 1  # This sets the order of lists in optical elements, must start at zero and increment from there.
+    band_center:  285.5  # not used
+    nu_low: 255.95       # if a band_response file is given, these set the low and high limits of integration.
+    nu_high: 315.05
+    read_frac: 0.05
+    band_response : {method: flat}
+    #band_response : {method: bandfile, fname : spt3g_90_pixelband.txt }
+    det_eff: 0.66
+    #psat: 4.18e-12  # see psat_method above.
+    horn_diameter: 5.2e-3   # meters
+    pixel_spacing: 5.2e-3
+    num_det_per_wafer: 938
