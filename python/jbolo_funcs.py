@@ -77,21 +77,25 @@ def run_optics(sim):
     #
     #print('Running optics')
 
+    # Go in and set all the optics components properties to the default
+    # value if they've not been set explicitly already.
     fill_in_optics_defaults(sim)
 
     # Check whether dictionary keys exist for outputs and create them if needed.
     if 'outputs' not in sim.keys():
         sim['outputs'] = {}
 
+    # Loop through all the channels, doing the optics calcs for each in turn.
     for ch in sim['channels'].keys():
-        # shortcut pointer
+
+        # create shortcut pointer to this channels' stuff, for use throughout
         sim_ch = sim['channels'][ch]
         chnum = sim_ch['chnum']
 
+        # Make place for outputs for this channel if it doesn't exist yet.
         if (ch not in sim['outputs'].keys()):
             sim['outputs'][ch]={}
-
-        # shorcut pointer
+        # Create shortcut pointer to this channel's outputs, for use throughout
         sim_out_ch = sim['outputs'][ch]
         # place to store optics results
         sim_out_ch['optics'] = {}
@@ -102,19 +106,23 @@ def run_optics(sim):
         # Create frequency vector, save it to dictionary
         nu_ghz = np.arange(sim_ch['nu_low'], sim_ch['nu_high'], sim['config']['dnu'])
         nu = nu_ghz*1e9
-        sim_out_ch['nu'] = np.copy(nu_ghz)
+        sim_out_ch['nu'] = np.copy(nu_ghz)  # save copy for outputs
+
+        # Decide how to handle A*Omega;  is it a fixed number  of modes,
+        # or is it set (eg geometrically) to a value?
         if (sim['bolo_config']['AOmega_method'] == 'ModeCount'):
             AOmega = sim['bolo_config']['N_modes']*(c/nu)**2
         if (sim['bolo_config']['AOmega_method'] == 'Fixed'):
-            AOmega = sim['bolo_config']['AOmega']*np.ones(nu)
+            AOmega = sim['bolo_config']['AOmega']*np.ones(nu)  # meters^2 * sr
 
-        # Start at bolometer, then run through elements cmb to get, for each element and the sum:
-        # P_optical_element, efficiency_element, cumulative_efficiency_to_just_past_that_element, each as f(nu)
+        # Start at bolometer, then run through elements out to the cmb to get,
+        # for each element and the total,
+        #   P_optical_element, efficiency_element, cumulative_efficiency_to_just_past_that_element, each as f(nu)
         Pnu_total = np.zeros(len(nu))  # power per Hz
         effic_cumul = np.ones(len(nu))
-        P_opt_cumul = 0
+        P_opt_cumul = 0  # integrated over photon frequency
 
-        # start at detector, then go through the rest of the list
+        # This block of code handles the detector.
         sim_out_ch['optics']['detector'] = {}
         if (sim_ch['band_response']['method'] == 'flat'):
             effic = np.ones(len(nu))*sim_ch['det_eff']
@@ -133,8 +141,10 @@ def run_optics(sim):
         # Do update the cumulative efficiency, for use with the next element.
         effic_cumul *= effic
 
-        # work outward from detector (done above) to cmb, for this pass
-        # Optical elements first.
+        # work outward from detector (done above) to cmb.
+        # We'll do all the instrument's optical elements first, in this block of code,
+        # then move on to the "sources" like the atmosphere and cmb.
+        # We start with the element nearest the detector.
         for elem in reversed(sim['optical_elements'].keys()):
             sim_elem = sim['optical_elements'][elem]
             sim_out_ch['optics'][elem] = {}
@@ -164,32 +174,51 @@ def run_optics(sim):
             # All of the loss mechanisms EXCEPT REFLECTIONS are assumed to couple to the same temperature, that of this element.
             # Reflections are assumed to not couple to any tmeperature;  this appears to be what bolo-calc did, so after verifying we'll modify.
             tempdict = {}
+            # Assign reflection, scattering and spillover values.
+            # These can be from a list (one value per channel), or from a single value
+            # that applies to all channels.
             for item in ['reflection','scatter_frac','spillover']:
                 if (type(sim_elem[item]) is list):  # if it's a list
                     tempdict[item] = sim_elem[item][chnum]
                 else:
                     tempdict[item] = sim_elem[item]
+            # Total emissivity is the sum of all the losses from the various effects.
+            # There are two easy ways to treat reflections:
+            #  a) as in BoloCalc, don't count reflections in the emissivity, only count them in the loss of optical efficiency.  This
+            #     is equivalent to all reflections terminating on zero Kelvin.
+            #  b) count the reflections as part of the emissivity, which terminates them on the temperature of the object.
+            #  We choose (a) below, but may modify it later.
             emiss_effective = emiss + tempdict['scatter_frac'] + tempdict['spillover'] #+ tempdict['reflection']
             effic = 1.0 - emiss_effective - tempdict['reflection']
-
-            Inu = bb_spec_rad(nu, sim_elem['temperature'], emiss_effective)  # This has units of W/m^2/sr/Hz
+            Inu = bb_spec_rad(nu, sim_elem['temperature'], emiss_effective)  # This has units of W/m^2/sr/Hz, and is coded for 2 polarizations.
             Pnu = Inu*AOmega*(sim['bolo_config']['N_polarizations']/2.0) # this is the power per Hz emitted by this element.
-            sim_out_ch['optics'][elem]['Pnu'] = np.copy(Pnu)
-            Pnu_total += Pnu*effic_cumul  # store how much of this element's Pnu gets to the bolometer
-            P_opt_elem = np.trapz(effic_cumul*Pnu,nu)
-            P_opt_cumul += P_opt_elem
-            # calculate and store the total optical power on the bolometer from this element.
+            sim_out_ch['optics'][elem]['Pnu'] = np.copy(Pnu)  # save the watts/Hz for this element.
+            Pnu_total += Pnu*effic_cumul  # store how much of this element's Pnu gets to the bolometer, Watts/Hz.
+            P_opt_elem = np.trapz(effic_cumul*Pnu,nu)  # Watts that get to the bolometer from this elmeent.
+            P_opt_cumul += P_opt_elem   # add this element to the total.
+            # Store the optical power absorbed by the bolo from this element, and the efficiency vs nu, of this element
             sim_out_ch['optics'][elem]['P_opt'] = np.copy(P_opt_elem)
             sim_out_ch['optics'][elem]['effic'] = np.copy(effic)
-            # The efficiency we store is *to* (not through) the relevant element.
+            # The cumulative efficiency we store at this element is *to* (not through) the relevant element.
             sim_out_ch['optics'][elem]['effic_cumul'] = np.copy(effic_cumul)
             # Update cumulative efficiency, for use with the next element.
             effic_cumul *= effic
 
-            # instrument system (detector + optics) band center and bandwidth
-            sim_out_ch['sys_bandwidth'] = np.trapz(effic_cumul,nu)/np.max(effic_cumul)
-            sim_out_ch['sys_bandcenter'] = np.trapz(effic_cumul*nu/np.max(effic_cumul), nu)/sim_out_ch['sys_bandwidth']
-
+        # Now that we've gotten through all the instrument elements, calculate
+        # some instrument-only things.
+        # instrument system (detector + optics) band center and bandwidth
+        sim_out_ch['sys_bandwidth'] = np.trapz(effic_cumul,nu)/np.max(effic_cumul)
+        sim_out_ch['sys_bandcenter'] = np.trapz(effic_cumul*nu/np.max(effic_cumul), nu)/sim_out_ch['sys_bandwidth']
+        #
+        # We want to store some properties of the instrument independent of the
+        # detector efficiency.  To calculate these, we take the quantities we've
+        # already calculated and divide by the detector efficiency.
+        #
+        # Efficiency of all the non-detector optical elements
+        sim_out_ch['optics_effic_total']=effic_cumul/sim_out_ch['optics']['detector']['effic']
+        #
+        # Pnu of all the instrument things (optics) just before the detector
+        sim_out_ch['optics_Pnu_total'] = Pnu_total/sim_out_ch['optics']['detector']['effic']
 
         # Now work through the "sources", from just after telescope to cmb.
         for src in reversed(sim['sources'].keys()):
@@ -209,7 +238,7 @@ def run_optics(sim):
                     tx_atmos, Tb_atmos = get_atmos_from_hdf5(sim,nu_ghz)
 
                 # Add option for file here, not done yet.
-                
+
                 Inu = bb_spec_rad(nu, Tb_atmos, emiss=1.0)
                 Pnu = Inu*AOmega*(sim['bolo_config']['N_polarizations']/2.0)
                 effic = np.copy(tx_atmos)
@@ -251,6 +280,14 @@ def run_optics(sim):
         sim_out_ch['NEP_photonNC'] = np.copy(NEP_photonNC)
         sim_out_ch['NEP_photon_poissonNC'] = np.copy(NEP_photon_poissonNC)
         sim_out_ch['NEP_photon_boseNC'] = np.copy(NEP_photon_boseNC)
+
+        # Alternate version as a check
+        NEP_photonNC, NEP_photon_poissonNC, NEP_photon_boseNC, n_avg = photon_NEP_single_v2(Pnu_total,nu)
+        sim_out_ch['NEP_photonNC_v2'] = np.copy(NEP_photonNC)
+        sim_out_ch['NEP_photon_poissonNC_v2'] = np.copy(NEP_photon_poissonNC)
+        sim_out_ch['NEP_photon_boseNC_v2'] = np.copy(NEP_photon_boseNC)
+        sim_out_ch['n_avg']=np.copy(n_avg)
+
         # Now do it with pixel-pixel correlations
         Pnu_stop = sim['outputs'][ch]['optics']['lyot']['Pnu']
         Pnu_apert = Pnu_total - Pnu_stop

@@ -1,4 +1,4 @@
-# Mostly copied from bolo-calc's (https://github.com/KIPAC/bolo-calc) 
+# Mostly copied from bolo-calc's (https://github.com/KIPAC/bolo-calc)
 # physics.py and noise.py
 # which were inherited from BoloCalc (https://github.com/chill90/BoloCalc)
 # combined because they're related.
@@ -180,10 +180,29 @@ def photon_NEP_single(P_nu, freqs):
       nep_bose : bose contribution
 
     """
-    nep_bose    = np.sqrt(2.*np.trapz(P_nu**2,freqs))  # The factor of 2 here is incorrect
+    nep_bose    = np.sqrt(2.*np.trapz(P_nu**2,freqs))
     nep_poisson = np.sqrt(2.*h*np.trapz(freqs*P_nu,freqs))
     nep = np.sqrt(nep_bose**2 + nep_poisson**2)
     return nep, nep_poisson, nep_bose
+
+def photon_NEP_single_v2(Pnu,nuvec):
+    """
+    Alternate version of single-detector photon noise calculation.
+    This works for any number of modes or polarizations, because
+    noises from those those add in the square.
+    Uses photon occupation number.
+
+    NEP_photon, NEP_poisson, NEP_bose, n_avg = photon_NEP_single_v2(Pnu,freqs)
+    """
+    n = Pnu/(h*nuvec)  # Photon occupation number.
+    A = 2*(h**2)*(nuvec**2)  # The factor of 2 here is bandwidth
+
+    NEP_poisson = np.sqrt(np.trapz(A*n,nuvec))
+    NEP_bose = np.sqrt(np.trapz(A*n**2,nuvec))
+    NEP_photon = np.sqrt(NEP_poisson**2 + NEP_bose**2)
+    n_avg = np.mean(n)
+
+    return NEP_photon, NEP_poisson, NEP_bose, n_avg
 
 
 def photon_NEP_with_corrs(Pnu_apert, Pnu_stop, apert_factor, stop_factor, freqs):
