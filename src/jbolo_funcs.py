@@ -124,12 +124,22 @@ def run_optics(sim):
 
         # This block of code handles the detector.
         sim_out_ch['optics']['detector'] = {}
+        # Flat bands
         if (sim_ch['band_response']['method'] == 'flat'):
             effic = np.ones(len(nu))*sim_ch['det_eff']
             sim_out_ch['det_bandwidth'] = (nu[-1]-nu[0])   # in Hz
             sim_out_ch['det_bandcenter'] = ((nu[-1]+nu[0])/2)
+        # Read band from file
         if (sim_ch['band_response']['method'] == 'bandfile'):
             nuband_in,band_in = np.loadtxt(sim_ch['band_response']['fname'], unpack=True)
+            band = np.interp(nu_ghz,nuband_in,band_in,left=0, right=0)
+            sim_out_ch['det_bandwidth'] = np.trapz(band, nu_ghz*1e9)/np.max(band)
+            sim_out_ch['det_bandcenter'] = np.trapz(band*nu_ghz*1e9, nu_ghz*1e9)/sim_out_ch['det_bandwidth']
+            effic = band*sim_ch['det_eff']  # shaped by band, so peak is probably the indicator of interest
+        # Specify band in two numpy vectors already loaded into sim, nuband_in (frequency in GHz) and band_in.
+        if (sim_ch['band_response']['method'] == 'band_vector'):
+            nuband_in = sim_ch['band_response']['nuband_in']
+            band_in =   sim_ch['band_response']['band_in']
             band = np.interp(nu_ghz,nuband_in,band_in,left=0, right=0)
             sim_out_ch['det_bandwidth'] = np.trapz(band, nu_ghz*1e9)/np.max(band)
             sim_out_ch['det_bandcenter'] = np.trapz(band*nu_ghz*1e9, nu_ghz*1e9)/sim_out_ch['det_bandwidth']

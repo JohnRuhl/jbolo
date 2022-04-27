@@ -12,6 +12,8 @@ sources:
     site: 'Atacama' #Pole
     pwv: 993      # microns, from 0 to 8000
     elevation: 40  # degrees, integer from 1 to 90
+    # Add custom file later, perhaps bespoke arrays.
+    #
 optics_defaults: {temperature: 273.0, reflection: 0.0, scatter_frac: 0.0, spillover: 0.0, absorption: 0.0}
 optical_elements:
   # requires python 3.7 or later, because we assume dict{} is ordered.
@@ -33,18 +35,18 @@ optical_elements:
   colimlens:    {obj_type: LossTangent, temperature: 4.0,  reflection: 0.006, thickness: 0.01, index: 3.41, loss_tangent: 0.5E-4}
   lowpass:      {obj_type: Bespoke,     temperature: 1.0,  absorption: 0.01, reflection: 0.05}
   #
-  # obj_type = 'ApertureStop' invokes a spillover calculation, using the f/# and a gaussian beam calculated from the horn diam 
+  # obj_type = 'ApertureStop' invokes a spillover calculation, using the f/# and a gaussian beam calculated from the horn diam
   # and frequency.  Apologies but currently this element must be called 'lyot'.
   lyot:         {obj_type: ApertureStop, temperature: 1.0}
   objlens:      {obj_type: LossTangent, temperature: 1.0,  reflection: 0.006, thickness: 0.01, index: 3.41, loss_tangent: 0.5E-4}
 bolo_config:
   # For aperture stop calcs
   waist_factor: 3.0
-  f_number: 1.9  
+  f_number: 1.9
   #
   N_polarizations: 1
   #
-  # For single-mode or N-mode bolometers, set  it up this way.  Eventually I'll hopefully add functionality allowing a fixed 
+  # For single-mode or N-mode bolometers, set  it up this way.  Eventually I'll hopefully add functionality allowing a fixed
   # throughput value at all frequencies, eg for a Winston cone.
   AOmega_method: ModeCount   # or "Fixed"
   N_modes: 1  # required if method == "ModeCount"
@@ -68,8 +70,15 @@ channels:
     nu_high: 30.00
     read_frac: 0.05
     band_response : {method: flat}
+    # Read from band file
     #band_response : {method: bandfile, fname : band0.txt }
-    det_eff: 0.63  
+    #
+    # To use the next method, you must arrange for the band-defining response vector
+    # to be in the correct place before run_optics is called.  The correct places are:
+    # sim['channels']['LF_1']['band_response']['nuband_in']  # frequencies band is specified at
+    # sim['channels']['LF_1']['band_response']['band_in']    # detector band response at those frequencies
+    #band_response : {method: bandvector}
+    det_eff: 0.63
     psat: 0.75e-12  # see psat_method above.
     horn_diameter: 16.1e-3   # meters
     pixel_spacing: 16.1e-3
