@@ -222,7 +222,9 @@ def run_optics(sim):
         #
         # We want to store some properties of the instrument independent of the
         # detector efficiency.  To calculate these, we take the quantities we've
-        # already calculated and divide by the detector efficiency.
+        # already calculated and divide by the detector efficiency.  Note that this
+        # division will blow up if we're using a detector band model that has zeros in it,
+        # so avoid doing that.
         #
         # Efficiency of all the non-detector optical elements
         sim_out_ch['optics_effic_total']=effic_cumul/sim_out_ch['optics']['detector']['effic']
@@ -249,6 +251,8 @@ def run_optics(sim):
 
                 # Add option for file here, not done yet.
 
+                sim_out_ch['sources'][src]['Tb_atmos']=np.copy(Tb_atmos)
+                sim_out_ch['sources'][src]['tx_atmos']=np.copy(tx_atmos)
                 Inu = bb_spec_rad(nu, Tb_atmos, emiss=1.0)
                 Pnu = Inu*AOmega*(sim['bolo_config']['N_polarizations']/2.0)
                 effic = np.copy(tx_atmos)
@@ -281,7 +285,8 @@ def run_optics(sim):
         dpix = sim_ch['pixel_spacing']
         lam_mean = c/np.mean(nu)
         det_pitch_flam = dpix/(fnum*lam_mean)
-        aperture_factor, stop_factor = corr_facts(det_pitch_flam, flamb_max = 3.)
+        sim['outputs'][ch]['det_pitch_flam']=np.copy(det_pitch_flam)
+        aperture_factor, stop_factor = corr_facts(det_pitch_flam, flamb_max = 4.)
         sim['outputs'][ch]['aperture_factor'] = np.copy(aperture_factor)
         sim['outputs'][ch]['stop_factor'] = np.copy(stop_factor)
 
@@ -398,14 +403,18 @@ def print_optics(sim,ch):
     print('Element            Popt(pW)   Effic  Effic_cumul')
 
     popttotal = 0
+    poptonly_total = 0
     for items in ['optics','sources']:
         for elem in sim['outputs'][ch][items].keys():
             _popt = sim['outputs'][ch][items][elem]['P_opt']
             popttotal += _popt
+            if items == 'optics':
+                poptonly_total += _popt
             _effic = np.mean(sim['outputs'][ch][items][elem]['effic'])
             _effic_cumul = np.mean(sim['outputs'][ch][items][elem]['effic_cumul'])
             print('{0:15s}:  {1:8.4f}   {2:8.4f}  {3:8.4f}'.format(elem, _popt*1e12,_effic,_effic_cumul))
 
+    print('P_opticsonly_total = {0:8.4e}'.format(poptonly_total))
     print('P_optical_total =  {0:8.4e}'.format(popttotal))
 
 
