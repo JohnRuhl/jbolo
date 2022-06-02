@@ -56,19 +56,28 @@ bolo_config:
   #
   beta: 2.7   # this is beta = n-1. bolo-calc called it "carrier index". Note that G_dynamic is found from psat, T_c, and carrier_index
   #
+  # loop gain
+  #loopgain_method: 'infinite'
+  #loopgain_method: 'from_alpha'  # alpha value given per channel below
+  loopgain_method: 'specified'  # loopgain value given per channel below
   T_bath: 0.1  # Kelvin
   T_c: 0.16    # Kelvin
-  R_bolo: 0.008   # as biased in operation, ie less than R_normal,  (Currently doesn't matter)
+  R_bolo: 0.008   # as biased in operation, ie less than R_normal.
+  R_shunt: 0.0004 # used in Johnson noise calc only.
   yield: 0.8   # for conversion from NET_1detector to NET_wafer
 readout:
-  method: 'fraction'  #in anticipation of getting NEI number/formula eventually. The fraction is specified below, channel-by-channel.
+  #method: 'fraction'  #in anticipation of getting NEI number/formula eventually. The fraction is specified below, channel-by-channel.
+  method: 'from_NEI'  # Uses
 channels:
   LF_1:
     chnum: 0  # This sets the order of lists in optical elements, must start at zero and increment from there.
     band_center:  25.75  # not used
     nu_low: 21.50        # if a band_response file is given, these set the low and high limits of integration.
     nu_high: 30.00
-    read_frac: 0.05
+    read_frac: 0.05 # only used if needed
+    loopgain: 1000  # only used if needed
+    alpha: 100      # only used if needed
+    readout_NEI: 40.e-12 #amps/rtHz, only used if needed
     band_response : {method: flat}
     # Read from band file
     #band_response : {method: bandfile, fname : band0.txt }
@@ -89,6 +98,9 @@ channels:
     nu_low: 29.99        # if a band_response file is given, these set the low and high limits of integration.
     nu_high: 47.51
     read_frac: 0.05
+    loopgain: 1000  # only used if needed
+    alpha: 100      # only used if needed
+    readout_NEI: 40.e-12 #amps/rtHz, only used if needed
     band_response : {method: flat}
     #band_response : {method: bandfile, fname : band1.txt }
     det_eff: 0.65
@@ -102,6 +114,9 @@ channels:
     nu_low: 77.0        # if a band_response file is given, these set the low and high limits of integration.
     nu_high: 106.0
     read_frac: 0.05
+    loopgain: 1000  # only used if needed
+    alpha: 100      # only used if needed
+    readout_NEI: 40.e-12 #amps/rtHz, only used if needed
     band_response : {method: flat}
     #band_response : {method: bandfile, fname : band2.txt }
     det_eff: 0.65
@@ -115,6 +130,9 @@ channels:
     nu_low: 128.0        # if a band_response file is given, these set the low and high limits of integration.
     nu_high: 169.0
     read_frac: 0.05
+    loopgain: 1000  # only used if needed
+    alpha: 100      # only used if needed
+    readout_NEI: 40.e-12 #amps/rtHz, only used if needed
     band_response : {method: flat}
     #band_response : {method: bandfile, fname : band3.txt }
     det_eff: 0.68
@@ -128,6 +146,9 @@ channels:
     nu_low: 197.94        # if a band_response file is given, these set the low and high limits of integration.
     nu_high: 256.06
     read_frac: 0.05
+    loopgain: 1000  # only used if needed
+    alpha: 100      # only used if needed
+    readout_NEI: 40.e-12 #amps/rtHz, only used if needed
     band_response : {method: flat}
     #band_response : {method: bandfile, fname : band4.txt }
     det_eff: 0.67
@@ -141,6 +162,9 @@ channels:
     nu_low: 255.95        # if a band_response file is given, these set the low and high limits of integration.
     nu_high: 315.05
     read_frac: 0.05
+    loopgain: 1000  # only used if needed
+    alpha: 100      # only used if needed
+    readout_NEI: 40.e-12 #amps/rtHz, only used if needed
     band_response : {method: flat}
     #band_response : {method: bandfile, fname : band5.txt }
     det_eff: 0.66

@@ -334,7 +334,7 @@ def run_bolos(sim):
     #
     #  - Psat
     #  - NEP_phonon
-    #  - NEP_johnson
+    #  - NEP_johnson == NEP_J_tot
     #  - NEP_total
     #  - NET total
     #  - NET_wafer, ignoriing nad including pixel photon noise correlations.
@@ -347,6 +347,11 @@ def run_bolos(sim):
     beta = sim['bolo_config']['beta']
     Tc =   sim['bolo_config']['T_c']
     Tbath =sim['bolo_config']['T_bath']
+    R_bolo = sim['bolo_config']['R_bolo']
+    if 'R_shunt' in sim['bolo_config'].keys():  # for johnson noise calc.
+        R_shunt = sim['bolo_config']['R_shunt']
+    else:
+        R_shunt = R_bolo/100.  # use this as default if not specified, ie make it tiny.
 
     for ch in sim['channels'].keys():
         if (ch not in sim['outputs'].keys()):
@@ -354,36 +359,78 @@ def run_bolos(sim):
         sim_ch = sim['channels'][ch]
         sim_out_ch = sim['outputs'][ch]
 
+        # calculate (if necessary) and save Psat
         if sim['bolo_config']['psat_method']=='specified':
             Psat = sim_ch['psat']
-
         if sim['bolo_config']['psat_method'] == 'from_optical_power':
             Psat = sim['bolo_config']['psat_factor']*sim_out_ch['P_opt']
+        sim_out_ch['P_sat'] = np.copy(Psat)
+
+        # Calculate and save electrical power, and from that the bolometer voltage
+        P_elec = Psat - sim_out_ch['P_opt']
+        if P_elec<0:
+            print('Warning:  Detector saturated, channel: {0:s}'.format(ch))
+        sim_out_ch['P_elec']= np.copy(P_elec)
+        V_bolo = np.sqrt(P_elec*R_bolo)
+
+        # Calculate NEP_phonon.
+        # This also calculates Gdynamic, which may be needed for loop gain calc (next)
+        Gdyn = Gdynamic(Psat, beta, Tbath, Tc)
+        sim_out_ch['G_dynamic'] = np.copy(Gdyn)
+        sim_out_ch['F_link'] = Flink(beta, Tbath, Tc)
+        sim_out_ch['NEP_phonon'] = NEP_phonon(sim_out_ch['F_link'], Gdyn, Tc)
+
+        # Calculate and save the loop gain
+        if 'loopgain_method' in sim['bolo_config'].keys():
+            if sim['bolo_config']['loopgain_method']=='infinite':
+                loopgain = 1000. # close enough to infinite for us.
+            if sim['bolo_config']['loopgain_method']=='specified':
+                loopgain = sim_ch['loopgain']
+            if sim['bolo_config']['loopgain_method']=='from_alpha':
+                loopgain = (sim_ch['alpha']*P_elec)/(Gdyn*Tc)
+        else:
+            loopgain = 1000. # set to near-infinite if user has not specified a method
+        sim_out_ch['loopgain'] = np.copy(loopgain)
+
+        # Calculate the magnitude of the current responsivity.  (We ignore the sign.)
+        S_I = (loopgain/(loopgain+1))/V_bolo   # amps/watt
+        sim_out_ch['S_I'] = np.copy(S_I)
 
         # Calculate NEP_phonon
-        sim_out_ch['P_sat'] = np.copy(Psat)
         sim_out_ch['G_dynamic'] = Gdynamic(Psat, beta, Tbath, Tc)
         sim_out_ch['F_link'] = Flink(beta, Tbath, Tc)
         sim_out_ch['NEP_phonon'] = NEP_phonon(sim_out_ch['F_link'], sim_out_ch['G_dynamic'], Tc)
 
-
-        # Calculate NEP_johnson
-        sim_out_ch['NEP_johnson'] = 0.0
+        # Calculate NEP_johnson== NEP_J_tot, from Irwin and Hilton taking chsi(I) = 1.
+        # Requires so many arguments I'm just coding it here.
+        NEP2_J_bolo = 4*kB*Tc*P_elec/loopgain**2
+        NEP2_J_shunt =(4*kB*Tbath*P_elec*R_shunt/R_bolo) * ((loopgain-1)/(loopgain))**2
+        sim_out_ch['NEP_J_bolo']  = np.sqrt(NEP2_J_bolo)
+        sim_out_ch['NEP_J_shunt'] = np.sqrt(NEP2_J_shunt)
+        sim_out_ch['NEP_J_tot']   = np.sqrt(NEP2_J_bolo + NEP2_J_shunt)
 
         # Calculate NEP_readout, must come after everything else to use "fraction" method
-        NEP_NC_allbutreadout2 = sim_out_ch['NEP_phonon']**2 + sim_out_ch['NEP_photonNC']**2 + sim_out_ch['NEP_johnson']**2
+        NEP_NC_allbutreadout2 = sim_out_ch['NEP_phonon']**2 + sim_out_ch['NEP_photonNC']**2 + sim_out_ch['NEP_J_tot']**2
         if (sim['readout']['method']=='fraction'):
             # readout noise leads to an increase in NEP_NC_total of X%
-            # NEP_total**2 = (1+read_frac)**2*(NEP_photon**2 + NEP_phonon**2 + NEP_johnson**2) = (NEP_photon**2 + NEP_phonon**2 + NEP_johnson**2 + NEP_readout**2)
-            # NEP_readout**2 = ((1+read_frac)**2 - 1) * (NEP_photon**2 + NEP_phonon**2 + NEP_johnson**2)
+            # NEP_total**2 = (1+read_frac)**2*(NEP_photon**2 + NEP_phonon**2 + NEP_J_tot**2) = (NEP_photon**2 + NEP_phonon**2 + NEP_J_tot**2 + NEP_readout**2)
+            # NEP_readout**2 = ((1+read_frac)**2 - 1) * (NEP_photon**2 + NEP_phonon**2 + NEP_J_tot**2)
             sim_out_ch['NEP_readout'] = np.sqrt(((1+sim_ch['read_frac'])**2 - 1.0)*NEP_NC_allbutreadout2)
+        if (sim['readout']['method']=='from_NEI'):
+            print(ch)
+            print(sim_ch['readout_NEI'])
+            print(S_I)
+            sim_out_ch['NEP_readout'] = sim_ch['readout_NEI']/S_I  # convert NEI to NEP
 
         # Calculate NEP_total
+        # Subscript "NC" means "Not using horn-horn photon noise correlations"
+        # Subscript "C" means "using horn-horn photon noise correlations"
+        # corr_factor is the ratio of those two, and depends on the relative size of various NEP contributions.
         sim_out_ch['NEP_NC_total'] = np.sqrt(sim_out_ch['NEP_readout']**2 + NEP_NC_allbutreadout2)  # ignore pixel correlations in bose noise
-        sim_out_ch['NEP_C_total']  = np.sqrt(sim_out_ch['NEP_readout']**2 + sim_out_ch['NEP_phonon']**2 + sim_out_ch['NEP_photonC']**2 + sim_out_ch['NEP_johnson']**2)   # include pixel correlations in bose noise
+        sim_out_ch['NEP_C_total']  = np.sqrt(sim_out_ch['NEP_readout']**2 + sim_out_ch['NEP_phonon']**2 + sim_out_ch['NEP_photonC']**2 + sim_out_ch['NEP_J_tot']**2)   # include pixel correlations in bose noise
         sim_out_ch['corr_factor'] = sim_out_ch['NEP_C_total']/sim_out_ch['NEP_NC_total']
 
-        # Convert NEPs to NETs
+        # Convert NEPs [in Watts/sqrt(Hz)]to single-detector NETs [in K_cmb*sqrt(s)]
         net_conversion_factor = 1/(sim_out_ch['dpdt']*np.sqrt(2))
         sim_out_ch['NET_NC_total'] = sim_out_ch['NEP_NC_total']*net_conversion_factor
         sim_out_ch['NET_C_total'] = sim_out_ch['NEP_C_total']*net_conversion_factor
@@ -422,13 +469,20 @@ def print_detector(sim,ch):
     print(ch)
     sim_out_ch = sim['outputs'][ch]
     print('  P_sat:       {0:7.2f}'.format(1e12*sim_out_ch['P_sat']))
+    print('  P_elec:      {0:7.2f}'.format(1e12*sim_out_ch['P_elec']))
     print('  F_link:      {0:7.2f}'.format(sim_out_ch['F_link']))
     print('  G_dynamic:   {0:7.2e}'.format(sim_out_ch['G_dynamic']))
+    print('  Loop gain:   {0:7.2e}'.format(sim_out_ch['loopgain']))
     print('  NEP_phonon:  {0:7.2f}'.format(1e18*sim_out_ch['NEP_phonon']))
+    print('  NEP_photon:  {0:7.2f}'.format(1e18*sim_out_ch['NEP_photonNC']))
+    print('  NEP_J_total: {0:7.2f}'.format(1e18*sim_out_ch['NEP_J_total']))
+    print('  NEP_readout: {0:7.2f}'.format(1e18*sim_out_ch['NEP_readout']))
+    print('  NEP_total:   {0:7.2f}'.format(1e18*sim_out_ch['NEP_NC_total']))
     print('  NET_uncorr:  {0:7.2f}'.format(1e6*sim_out_ch['NET_NC_total']))
-    print('  NET_corr:    {0:7.2f}'.format(1e6*sim_out_ch['NET_C_total']))
-    print('  Corr_factor: {0:7.3f}'.format(sim_out_ch['corr_factor']))
     print('  NET_NC_wafer:   {0:7.2f}'.format(1e6*sim_out_ch['NET_NC_wafer']))
+    print('  With horn correlations:')
+    print('  Corr_factor: {0:7.3f}'.format(sim_out_ch['corr_factor']))
+    print('  NET_corr:    {0:7.2f}'.format(1e6*sim_out_ch['NET_C_total']))
     print('  NET_C_wafer:   {0:7.2f}'.format(1e6*sim_out_ch['NET_C_wafer']))
 
 def print_one_line(sim,param,multiplier):
@@ -446,17 +500,21 @@ def print_full_table(sim):
         'sky_bandcenter':1e-9,
         'sky_bandwidth':1e-9,
         'P_opt':1e12,
+        'P_elec':1e12,
         'P_sat':1e12,
+        'loopgain':1.0,
         'F_link': 1.0,
         'G_dynamic': 1e12,
         'dpdt': 1e12,
         'NEP_phonon':1e18,
-        'NEP_photonNC':1e18,
-        'NEP_photonC':1e18,
+        'NEP_J_tot':1e18,
         'NEP_readout':1e18,
+        'NEP_photonNC':1e18,
         'NEP_NC_total':1e18,
         'NET_NC_total':1e6,
+        'NET_C_wafer':1e6,
         'corr_factor':1.0,
+        'NEP_photonC':1e18,
         'NET_C_total':1e6,
         'NET_C_wafer':1e6}
     print((str(sim['version']['date'])+' : '+sim['version']['name']).ljust(16))

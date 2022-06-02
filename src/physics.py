@@ -282,6 +282,7 @@ def NEP_phonon(flink, Gdynamic, Tc):   # bolo-calc called this "bolo_NEP"
     """
     return np.sqrt(4 * kB * flink * (Tc**2) * Gdynamic)
 
+
 # Not used in jbolo;  pull apart the responsivity and read_NEP calcs.
 def read_NEP(pelec, boloR, nei, sfact=1.):
     """
