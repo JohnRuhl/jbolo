@@ -417,9 +417,6 @@ def run_bolos(sim):
             # NEP_readout**2 = ((1+read_frac)**2 - 1) * (NEP_photon**2 + NEP_phonon**2 + NEP_J_tot**2)
             sim_out_ch['NEP_readout'] = np.sqrt(((1+sim_ch['read_frac'])**2 - 1.0)*NEP_NC_allbutreadout2)
         if (sim['readout']['method']=='from_NEI'):
-            print(ch)
-            print(sim_ch['readout_NEI'])
-            print(S_I)
             sim_out_ch['NEP_readout'] = sim_ch['readout_NEI']/S_I  # convert NEI to NEP
 
         # Calculate NEP_total

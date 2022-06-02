@@ -58,16 +58,15 @@ http://pbfs.physics.berkeley.edu/BoloCalc/ATM/atm_20201217.hdf5
 and put it in jbolo/atmos/atm_20201217.hdf5.  The yaml file needs to
 point to that file in the relevant spot (see example).
 
-I suggest (but it is not required) that output files go in jbolo/outputs.
+You can run it from within your jbolo directory (as the example notebooks do),
+or create a parallel directory with your scripts, yamls, and notebooks that call it.  This
+is what we do for cmb-s4, in S4's bolo_calc_runs/jbolo repo.
 
 
 ## Things that will come "soon":
 Here are some things that are missing that I expect to add in the not-too-distant future:
-- Johnson noise
-- Readout noise from a specified NEI
 - band files for reflections and absorption
 - read atmos file from am output rather than the hdf5 file.
-- Loop gain (given alpha).
 
 ## Differences with BoloCalc/bolo-calc
 jbolo differs from BoloCalc/bolo-calc in a few ways that make real numerical
