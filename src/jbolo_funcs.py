@@ -105,7 +105,7 @@ def run_optics(sim):
         #
         # Create frequency vector, save it to dictionary
         nu_ghz = np.arange(sim_ch['nu_low'], sim_ch['nu_high'], sim['config']['dnu'])
-        nu = nu_ghz*1e9
+        nu = nu_ghz*1e9  # in Hz
         sim_out_ch['nu'] = np.copy(nu_ghz)  # save copy for outputs
 
         # Decide how to handle A*Omega;  is it a fixed number  of modes,
@@ -124,26 +124,56 @@ def run_optics(sim):
 
         # This block of code handles the detector.
         sim_out_ch['optics']['detector'] = {}
-        # Flat bands
+        #
+        # Flat bands, normalized by det_eff
         if (sim_ch['band_response']['method'] == 'flat'):
-            effic = np.ones(len(nu))*sim_ch['det_eff']
-            sim_out_ch['det_bandwidth'] = (nu[-1]-nu[0])   # in Hz
-            sim_out_ch['det_bandcenter'] = ((nu[-1]+nu[0])/2)
-        # Read band from file
+            if ('nu_lowedge' in sim_ch['band_response'].keys()):  # check if limits given
+                _nulow = sim_ch['band_response']['nu_lowedge']
+                _nuhigh = sim_ch['band_response']['nu_highedge']
+                band = np.where((nu_ghz>=_nulow) & (nu_ghz<=_nuhigh), 1.0, 1e-6)
+                effic = band*sim_ch['det_eff']
+                sim_out_ch['det_bandwidth'] = 1e9*(_nuhigh - _nulow)   # in Hz
+                sim_out_ch['det_bandcenter'] = 1e9*(_nuhigh+_nulow)/2  # in Hz
+            else:
+                band = np.ones(len(nu))
+                effic = band*sim_ch['det_eff'] # just make a flat band covering all the integration range.
+                sim_out_ch['det_bandwidth'] = (nu[-1]-nu[0])   # in Hz
+                sim_out_ch['det_bandcenter'] = ((nu[-1]+nu[0])/2)
+        #
+        # Read band from file, normalized by det_eff.  File expected to be in GHz.
         if (sim_ch['band_response']['method'] == 'bandfile'):
             nuband_in,band_in = np.loadtxt(sim_ch['band_response']['fname'], unpack=True)
             band = np.interp(nu_ghz,nuband_in,band_in,left=0, right=0)
-            sim_out_ch['det_bandwidth'] = np.trapz(band, nu_ghz*1e9)/np.max(band)
-            sim_out_ch['det_bandcenter'] = np.trapz(band*nu_ghz*1e9, nu_ghz*1e9)/sim_out_ch['det_bandwidth']
+            sim_out_ch['det_bandwidth'] = np.trapz(band, nu)/np.max(band)
+            sim_out_ch['det_bandcenter'] = np.trapz(band*nu, nu)/sim_out_ch['det_bandwidth']
             effic = band*sim_ch['det_eff']  # shaped by band, so peak is probably the indicator of interest
-        # Specify band in two numpy vectors already loaded into sim, nuband_in (frequency in GHz) and band_in.
+        #
+        # Specify bandshape in two numpy vectors already loaded into sim, nuband_in (frequency in GHz) and band_in.
+        # Normalized by det_eff
         if (sim_ch['band_response']['method'] == 'band_vector'):
             nuband_in = sim_ch['band_response']['nuband_in']
             band_in =   sim_ch['band_response']['band_in']
             band = np.interp(nu_ghz,nuband_in,band_in,left=0, right=0)
-            sim_out_ch['det_bandwidth'] = np.trapz(band, nu_ghz*1e9)/np.max(band)
-            sim_out_ch['det_bandcenter'] = np.trapz(band*nu_ghz*1e9, nu_ghz*1e9)/sim_out_ch['det_bandwidth']
+            sim_out_ch['det_bandwidth'] = np.trapz(band, nu)/np.max(band)
+            sim_out_ch['det_bandcenter'] = np.trapz(band*nu, nu)/sim_out_ch['det_bandwidth']
             effic = band*sim_ch['det_eff']  # shaped by band, so peak is probably the indicator of interest
+        #
+        # Logistic model, normalized by det_eff, edges specified in GHz.
+        if (sim_ch['band_response']['method'] == 'logistic'):
+            _nulow =  sim_ch['band_response']['nu_lowedge']
+            _nuhigh = sim_ch['band_response']['nu_highedge']
+            _a = sim_ch['band_response']['a']
+            _n = sim_ch['band_response']['n']
+            band = logistic_bandmodel(nu_ghz, _nulow, _nuhigh,_a,_n)
+            sim_out_ch['det_bandwidth'] = np.trapz(band, nu)/np.max(band)
+            sim_out_ch['det_bandcenter'] = np.trapz(band*nu, nu)/sim_out_ch['det_bandwidth']
+            effic = band*sim_ch['det_eff']
+
+        # Finally, if anywhere we have effic = too small, things will blow up later,
+        # so make the minimum efficiency 1e-6.
+        effic = np.where(effic>1e-6,effic,1e-6)
+
+        sim_out_ch['optics']['detector']['band'] = np.copy(band)
         sim_out_ch['optics']['detector']['effic'] = np.copy(effic)
         sim_out_ch['optics']['detector']['effic_cumul'] = np.copy(effic_cumul)  # all ones
         # Don't calculate a power of the detector on itself.
@@ -151,7 +181,7 @@ def run_optics(sim):
         # Do update the cumulative efficiency, for use with the next element.
         effic_cumul *= effic
 
-        # work outward from detector (done above) to cmb.
+        # Now, work outward from detector (done above) to cmb.
         # We'll do all the instrument's optical elements first, in this block of code,
         # then move on to the "sources" like the atmosphere and cmb.
         # We start with the element nearest the detector.
@@ -436,10 +466,6 @@ def run_bolos(sim):
         sim_out_ch['NET_C_wafer'] = sim_out_ch['NET_C_total']/np.sqrt(sim['bolo_config']['yield']*sim_ch['num_det_per_wafer'])
         sim_out_ch['NET_NC_wafer'] = sim_out_ch['NET_NC_total']/np.sqrt(sim['bolo_config']['yield']*sim_ch['num_det_per_wafer'])
 
-    ################################
-    # Save results to a toml file.
-    #
-
 
 ##### Print a single optics channel's optical-chain info
 def print_optics(sim,ch):
@@ -522,6 +548,38 @@ def print_full_table(sim):
     for param in param_list.keys():
         print_one_line(sim,param,param_list[param])
 
+# A function that returns a detector (or other) passband that has soft
+# edges...
+def logistic_bandmodel(nuvec, nu_lowedge, nu_highedge,a,n):
+    '''Returns a logistic-function band model,
+       peaking at unity, given input central frequency
+       and bandwidth in GHz.
+
+       nuvec:  numpy vector of frequencies at which to return the function
+       nu_lowedge:  50% power point of low edge of band.
+       nu_highedge: 50% power point of high edge of band.
+       a: prefactor used in logistic model
+       n: exponent used in logistic model
+
+       band = f1*f2, where f1 is a highpass, f2 is a lowpass
+       k1 = a*(20/lowedge)**n
+       k2 = a*(20/highedge)**m
+       f1 =     1/(1+np.exp(-k1*(nu-nu_lowedge )))
+       f2 = 1 - 1/(1+np.exp(-k2*(nu-nu_highedge)))
+
+       Note that a = 2, n=0.7 gives "reasonable" band edge
+       transitions for CMB-S4.
+    '''
+    k1 = a*(20/nu_lowedge)**n
+    f1 = 1/(1+np.exp(-k1*(nuvec-nu_lowedge )))
+    k2 = a*(20/nu_highedge)**n
+    f2 = 1-1/(1+np.exp(-k2*(nuvec-nu_highedge)))
+    f_band = f1*f2
+    f_band = f_band/np.max(f_band) # normalize to unity
+    return f_band
+
+
+# this doesn't work, sim is too complicated now.
 def sim_output_to_toml(mydict, filename):
     # Write to toml file
     with open(filename, "w") as toml_file:

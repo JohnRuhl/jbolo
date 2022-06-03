@@ -60,6 +60,7 @@ bolo_config:
   #loopgain_method: 'infinite'
   #loopgain_method: 'from_alpha'  # alpha value given per channel below
   loopgain_method: 'specified'  # loopgain value given per channel below
+  #
   T_bath: 0.1  # Kelvin
   T_c: 0.16    # Kelvin
   R_bolo: 0.008   # as biased in operation, ie less than R_normal.
@@ -67,26 +68,40 @@ bolo_config:
   yield: 0.8   # for conversion from NET_1detector to NET_wafer
 readout:
   #method: 'fraction'  #in anticipation of getting NEI number/formula eventually. The fraction is specified below, channel-by-channel.
-  method: 'from_NEI'  # Uses
+  method: 'from_NEI'  # Uses NEI and calculated responsivity to get NEP.
 channels:
   LF_1:
     chnum: 0  # This sets the order of lists in optical elements, must start at zero and increment from there.
-    band_center:  25.75  # not used
-    nu_low: 21.50        # if a band_response file is given, these set the low and high limits of integration.
-    nu_high: 30.00
+    #band_center:  25.75  # not used
     read_frac: 0.05 # only used if needed
     loopgain: 1000  # only used if needed
     alpha: 100      # only used if needed
     readout_NEI: 40.e-12 #amps/rtHz, only used if needed
-    band_response : {method: flat}
+    #
+    # There are several methods of setting the band response.
+    # In all of these, make sure your limits of integration (above) are set appropriately outside
+    # the curve of whatever you're using to shape the band.
+    nu_low: 21.50        # limit of integration
+    nu_high: 30.00       # limit of integration
+    #
+    # In my opinion this is the best way of setting a flat band, because it works even if you've
+    # been playing with band files or logistic things/etc which require the integration limits to be broadened.
+    band_response : {method: flat, nu_lowedge: 21.50, nu_highedge: 30.00}
+    #
     # Read from band file
+    # Ma
     #band_response : {method: bandfile, fname : band0.txt }
     #
-    # To use the next method, you must arrange for the band-defining response vector
+    # To use the next method (bandvector), you must arrange for the band-defining response vector
     # to be in the correct place before run_optics is called.  The correct places are:
     # sim['channels']['LF_1']['band_response']['nuband_in']  # frequencies band is specified at
     # sim['channels']['LF_1']['band_response']['band_in']    # detector band response at those frequencies
     #band_response : {method: bandvector}
+    #
+    # The next method uses a logistic function to shape the band.
+    # Make sure limits of integration (above) are set reasonably outside your 50% edge points.
+    #band_response : {method: logistic, nu_lowedge: 21.50, nu_highedge: 30.00, a: 0.7, n: 2.0}
+    #
     det_eff: 0.63
     psat: 0.75e-12  # see psat_method above.
     horn_diameter: 16.1e-3   # meters
@@ -95,13 +110,15 @@ channels:
   LF_2:
     chnum: 1  # This sets the order of lists in optical elements, must start at zero and increment from there.
     band_center:  38.75  # not used
-    nu_low: 29.99        # if a band_response file is given, these set the low and high limits of integration.
+    nu_low: 29.99        # limits of integration.
     nu_high: 47.51
+    nu_low_50: 29.99     # 50% power point for flat band, or for logistic model.
+    nu_high_50: 47.51
     read_frac: 0.05
     loopgain: 1000  # only used if needed
     alpha: 100      # only used if needed
     readout_NEI: 40.e-12 #amps/rtHz, only used if needed
-    band_response : {method: flat}
+    band_response : {method: flat}  # This works, but requires the limits of integration to be the band edges.
     #band_response : {method: bandfile, fname : band1.txt }
     det_eff: 0.65
     psat: 4.18e-12  # see psat_method above.
@@ -111,7 +128,7 @@ channels:
   MF_1:
     chnum: 2  # This sets the order of lists in optical elements, must start at zero and increment from there.
     band_center:  91.5  # not used
-    nu_low: 77.0        # if a band_response file is given, these set the low and high limits of integration.
+    nu_low: 77.0        # limits of integration.
     nu_high: 106.0
     read_frac: 0.05
     loopgain: 1000  # only used if needed
@@ -127,7 +144,7 @@ channels:
   MF_2:
     chnum: 3  # This sets the order of lists in optical elements, must start at zero and increment from there.
     band_center:  148.5  # not used
-    nu_low: 128.0        # if a band_response file is given, these set the low and high limits of integration.
+    nu_low: 128.0        # limits of integration.
     nu_high: 169.0
     read_frac: 0.05
     loopgain: 1000  # only used if needed
@@ -143,13 +160,14 @@ channels:
   HF_1:
     chnum: 4  # This sets the order of lists in optical elements, must start at zero and increment from there.
     band_center:  227.0  # not used
-    nu_low: 197.94        # if a band_response file is given, these set the low and high limits of integration.
-    nu_high: 256.06
+    nu_low: 150.0        # These set the low and high limits of integration.
+    nu_high: 300.0
     read_frac: 0.05
     loopgain: 1000  # only used if needed
     alpha: 100      # only used if needed
     readout_NEI: 40.e-12 #amps/rtHz, only used if needed
-    band_response : {method: flat}
+    #band_response : {method: flat,     nu_lowedge: 197.94, nu_highedge: 256.06}
+    band_response : {method: logistic, nu_lowedge: 197.94, nu_highedge: 256.06, a: 2.0, n: 0.7}  # set a=10 for quite-square band.
     #band_response : {method: bandfile, fname : band4.txt }
     det_eff: 0.67
     psat: 31.70e-12  # see psat_method above.
@@ -159,13 +177,13 @@ channels:
   HF_2:
     chnum: 5  # This sets the order of lists in optical elements, must start at zero and increment from there.
     band_center:  285.5  # not used
-    nu_low: 255.95        # if a band_response file is given, these set the low and high limits of integration.
+    nu_low: 255.95        # limits of integration.
     nu_high: 315.05
     read_frac: 0.05
     loopgain: 1000  # only used if needed
     alpha: 100      # only used if needed
     readout_NEI: 40.e-12 #amps/rtHz, only used if needed
-    band_response : {method: flat}
+    band_response : {method: flat, nu_lowedge: 255.95, nu_highedge: 315.05}
     #band_response : {method: bandfile, fname : band5.txt }
     det_eff: 0.66
     psat: 42.43e-12  # see psat_method above.
