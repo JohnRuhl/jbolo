@@ -407,7 +407,13 @@ def run_bolos(sim):
         # This also calculates Gdynamic, which may be needed for loop gain calc (next)
         Gdyn = Gdynamic(Psat, beta, Tbath, Tc)
         sim_out_ch['G_dynamic'] = np.copy(Gdyn)
-        sim_out_ch['F_link'] = Flink(beta, Tbath, Tc)
+        if 'F_link_method' in sim['bolo_config'].keys():
+            if sim['bolo_config']['F_link_method']=='specified':
+                sim_out_ch['F_link'] = sim_ch['F_link']
+            if sim['bolo_config']['F_link_method']=='from_beta':
+                sim_out_ch['F_link'] = Flink(beta, Tbath, Tc)
+        else:
+            sim_out_ch['F_link'] = Flink(beta, Tbath, Tc)
         sim_out_ch['NEP_phonon'] = NEP_phonon(sim_out_ch['F_link'], Gdyn, Tc)
 
         # Calculate and save the loop gain
@@ -425,11 +431,6 @@ def run_bolos(sim):
         # Calculate the magnitude of the current responsivity.  (We ignore the sign.)
         S_I = (loopgain/(loopgain+1))/V_bolo   # amps/watt
         sim_out_ch['S_I'] = np.copy(S_I)
-
-        # Calculate NEP_phonon
-        sim_out_ch['G_dynamic'] = Gdynamic(Psat, beta, Tbath, Tc)
-        sim_out_ch['F_link'] = Flink(beta, Tbath, Tc)
-        sim_out_ch['NEP_phonon'] = NEP_phonon(sim_out_ch['F_link'], sim_out_ch['G_dynamic'], Tc)
 
         # Calculate NEP_johnson== NEP_J_tot, from Irwin and Hilton taking chsi(I) = 1.
         # Requires so many arguments I'm just coding it here.
