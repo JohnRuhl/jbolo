@@ -145,7 +145,7 @@ def run_optics(sim):
             nuband_in,band_in = np.loadtxt(sim_ch['band_response']['fname'], unpack=True)
             band = np.interp(nu_ghz,nuband_in,band_in,left=0, right=0)
             sim_out_ch['det_bandwidth'] = np.trapz(band, nu)/np.max(band)
-            sim_out_ch['det_bandcenter'] = np.trapz(band*nu, nu)/sim_out_ch['det_bandwidth']
+            sim_out_ch['det_bandcenter'] = np.trapz(band*nu/np.max(band), nu)/sim_out_ch['det_bandwidth']
             effic = band*sim_ch['det_eff']  # shaped by band, so peak is probably the indicator of interest
         #
         # Specify bandshape in two numpy vectors already loaded into sim, nuband_in (frequency in GHz) and band_in.
@@ -155,7 +155,7 @@ def run_optics(sim):
             band_in =   sim_ch['band_response']['band_in']
             band = np.interp(nu_ghz,nuband_in,band_in,left=0, right=0)
             sim_out_ch['det_bandwidth'] = np.trapz(band, nu)/np.max(band)
-            sim_out_ch['det_bandcenter'] = np.trapz(band*nu, nu)/sim_out_ch['det_bandwidth']
+            sim_out_ch['det_bandcenter'] = np.trapz(band*nu/np.max(band), nu)/sim_out_ch['det_bandwidth']
             effic = band*sim_ch['det_eff']  # shaped by band, so peak is probably the indicator of interest
         #
         # Logistic model, normalized by det_eff, edges specified in GHz.
