@@ -202,6 +202,9 @@ def run_optics(sim):
             if obj_type == 'Bespoke':
                 if (type(sim_elem['absorption']) is list):
                     emiss = sim_elem['absorption'][chnum]*np.ones(len(nu))
+                elif isinstance(sim_elem['absorption'],str):
+                    nuemiss_in,emiss_in = np.loadtxt(sim_elem['absorption'], unpack=True)
+                    emiss = np.interp(nu_ghz,nuemiss_in,emiss_in,left=0, right=0)
                 else:
                     emiss = sim_elem['absorption']*np.ones(len(nu))
             if obj_type == 'ApertureStop':
@@ -216,10 +219,13 @@ def run_optics(sim):
             tempdict = {}
             # Assign reflection, scattering and spillover values.
             # These can be from a list (one value per channel), or from a single value
-            # that applies to all channels.
+            # or band file that applies to all channels.
             for item in ['reflection','scatter_frac','spillover']:
                 if (type(sim_elem[item]) is list):  # if it's a list
                     tempdict[item] = sim_elem[item][chnum]
+                elif isinstance(sim_elem[item],str): # if it's a band filename
+                    nuitem_in,item_in = np.loadtxt(sim_elem[item], unpack=True)
+                    tempdict[item] = np.interp(nu_ghz,nuitem_in,item_in,left=0, right=0)
                 else:
                     tempdict[item] = sim_elem[item]
             # Total emissivity is the sum of all the losses from the various effects.
