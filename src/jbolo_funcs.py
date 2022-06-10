@@ -340,7 +340,7 @@ def run_optics(sim):
         sim_out_ch['n_avg']=np.copy(n_avg)
 
         # Now do it with pixel-pixel correlations
-        Pnu_stop = sim['outputs'][ch]['optics']['lyot']['Pnu']
+        Pnu_stop = sim['outputs'][ch]['optics']['lyot']['Pnu']*sim_out_ch['optics']['lyot']['effic_cumul']
         Pnu_apert = Pnu_total - Pnu_stop
         NEP_photonC, NEP_photon_poissonC, NEP_photon_boseC = photon_NEP_with_corrs(Pnu_apert, Pnu_stop, aperture_factor, stop_factor, nu)
         sim_out_ch['NEP_photonC'] = np.copy(NEP_photonC)
