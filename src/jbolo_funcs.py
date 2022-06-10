@@ -308,7 +308,7 @@ def run_optics(sim):
             # If we just did the atmosphere, calculate the band center and width to the celestial sources, ie above the atmos.
             if (sim_src['source_type'] == 'hdf5'):
                 sim_out_ch['sky_bandwidth'] = np.trapz(effic_cumul,nu)/np.max(effic_cumul)
-                sim_out_ch['sky_bandcenter'] = np.trapz(effic_cumul*nu/np.max(effic_cumul), nu)/sim_out_ch['sys_bandwidth']
+                sim_out_ch['sky_bandcenter'] = np.trapz(effic_cumul*nu/np.max(effic_cumul), nu)/sim_out_ch['sky_bandwidth']
 
         # report scalars of things summed over all elements, and over frequency
         sim['outputs'][ch]['P_opt'] = np.copy(P_opt_cumul)
