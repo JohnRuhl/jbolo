@@ -319,7 +319,7 @@ def run_optics(sim):
         # calculate the correlation factor for that channel, due to horn size, f/#, and frequencies
         fnum = sim['bolo_config']['f_number']
         dpix = sim_ch['pixel_spacing']
-        lam_mean = c/np.mean(nu)
+        lam_mean = c/sim_out_ch['det_bandcenter']
         det_pitch_flam = dpix/(fnum*lam_mean)
         sim['outputs'][ch]['det_pitch_flam']=np.copy(det_pitch_flam)
         aperture_factor, stop_factor = corr_facts(det_pitch_flam, flamb_max = 4.)
