@@ -145,7 +145,7 @@ def run_optics(sim):
             nuband_in,band_in = np.loadtxt(sim_ch['band_response']['fname'], unpack=True)
             band = np.interp(nu_ghz,nuband_in,band_in,left=0, right=0)
             sim_out_ch['det_bandwidth'] = np.trapz(band, nu)/np.max(band)
-            sim_out_ch['det_bandcenter'] = np.trapz(band*nu, nu)/sim_out_ch['det_bandwidth']
+            sim_out_ch['det_bandcenter'] = np.trapz(band*nu/np.max(band), nu)/sim_out_ch['det_bandwidth']
             effic = band*sim_ch['det_eff']  # shaped by band, so peak is probably the indicator of interest
         #
         # Specify bandshape in two numpy vectors already loaded into sim, nuband_in (frequency in GHz) and band_in.
@@ -155,7 +155,7 @@ def run_optics(sim):
             band_in =   sim_ch['band_response']['band_in']
             band = np.interp(nu_ghz,nuband_in,band_in,left=0, right=0)
             sim_out_ch['det_bandwidth'] = np.trapz(band, nu)/np.max(band)
-            sim_out_ch['det_bandcenter'] = np.trapz(band*nu, nu)/sim_out_ch['det_bandwidth']
+            sim_out_ch['det_bandcenter'] = np.trapz(band*nu/np.max(band), nu)/sim_out_ch['det_bandwidth']
             effic = band*sim_ch['det_eff']  # shaped by band, so peak is probably the indicator of interest
         #
         # Logistic model, normalized by det_eff, edges specified in GHz.
@@ -202,6 +202,9 @@ def run_optics(sim):
             if obj_type == 'Bespoke':
                 if (type(sim_elem['absorption']) is list):
                     emiss = sim_elem['absorption'][chnum]*np.ones(len(nu))
+                elif isinstance(sim_elem['absorption'],str):
+                    nuemiss_in,emiss_in = np.loadtxt(sim_elem['absorption'], unpack=True)
+                    emiss = np.interp(nu_ghz,nuemiss_in,emiss_in,left=0, right=0)
                 else:
                     emiss = sim_elem['absorption']*np.ones(len(nu))
             if obj_type == 'ApertureStop':
@@ -216,10 +219,13 @@ def run_optics(sim):
             tempdict = {}
             # Assign reflection, scattering and spillover values.
             # These can be from a list (one value per channel), or from a single value
-            # that applies to all channels.
+            # or band file that applies to all channels.
             for item in ['reflection','scatter_frac','spillover']:
                 if (type(sim_elem[item]) is list):  # if it's a list
                     tempdict[item] = sim_elem[item][chnum]
+                elif isinstance(sim_elem[item],str): # if it's a band filename
+                    nuitem_in,item_in = np.loadtxt(sim_elem[item], unpack=True)
+                    tempdict[item] = np.interp(nu_ghz,nuitem_in,item_in,left=0, right=0)
                 else:
                     tempdict[item] = sim_elem[item]
             # Total emissivity is the sum of all the losses from the various effects.
@@ -302,7 +308,7 @@ def run_optics(sim):
             # If we just did the atmosphere, calculate the band center and width to the celestial sources, ie above the atmos.
             if (sim_src['source_type'] == 'hdf5'):
                 sim_out_ch['sky_bandwidth'] = np.trapz(effic_cumul,nu)/np.max(effic_cumul)
-                sim_out_ch['sky_bandcenter'] = np.trapz(effic_cumul*nu/np.max(effic_cumul), nu)/sim_out_ch['sys_bandwidth']
+                sim_out_ch['sky_bandcenter'] = np.trapz(effic_cumul*nu/np.max(effic_cumul), nu)/sim_out_ch['sky_bandwidth']
 
         # report scalars of things summed over all elements, and over frequency
         sim['outputs'][ch]['P_opt'] = np.copy(P_opt_cumul)
@@ -313,7 +319,7 @@ def run_optics(sim):
         # calculate the correlation factor for that channel, due to horn size, f/#, and frequencies
         fnum = sim['bolo_config']['f_number']
         dpix = sim_ch['pixel_spacing']
-        lam_mean = c/np.mean(nu)
+        lam_mean = c/sim_out_ch['det_bandcenter']
         det_pitch_flam = dpix/(fnum*lam_mean)
         sim['outputs'][ch]['det_pitch_flam']=np.copy(det_pitch_flam)
         aperture_factor, stop_factor = corr_facts(det_pitch_flam, flamb_max = 4.)
@@ -334,7 +340,7 @@ def run_optics(sim):
         sim_out_ch['n_avg']=np.copy(n_avg)
 
         # Now do it with pixel-pixel correlations
-        Pnu_stop = sim['outputs'][ch]['optics']['lyot']['Pnu']
+        Pnu_stop = sim['outputs'][ch]['optics']['lyot']['Pnu']*sim_out_ch['optics']['lyot']['effic_cumul']
         Pnu_apert = Pnu_total - Pnu_stop
         NEP_photonC, NEP_photon_poissonC, NEP_photon_boseC = photon_NEP_with_corrs(Pnu_apert, Pnu_stop, aperture_factor, stop_factor, nu)
         sim_out_ch['NEP_photonC'] = np.copy(NEP_photonC)
@@ -407,7 +413,13 @@ def run_bolos(sim):
         # This also calculates Gdynamic, which may be needed for loop gain calc (next)
         Gdyn = Gdynamic(Psat, beta, Tbath, Tc)
         sim_out_ch['G_dynamic'] = np.copy(Gdyn)
-        sim_out_ch['F_link'] = Flink(beta, Tbath, Tc)
+        if 'F_link_method' in sim['bolo_config'].keys():
+            if sim['bolo_config']['F_link_method']=='specified':
+                sim_out_ch['F_link'] = sim_ch['F_link']
+            if sim['bolo_config']['F_link_method']=='from_beta':
+                sim_out_ch['F_link'] = Flink(beta, Tbath, Tc)
+        else:
+            sim_out_ch['F_link'] = Flink(beta, Tbath, Tc)
         sim_out_ch['NEP_phonon'] = NEP_phonon(sim_out_ch['F_link'], Gdyn, Tc)
 
         # Calculate and save the loop gain
@@ -425,11 +437,6 @@ def run_bolos(sim):
         # Calculate the magnitude of the current responsivity.  (We ignore the sign.)
         S_I = (loopgain/(loopgain+1))/V_bolo   # amps/watt
         sim_out_ch['S_I'] = np.copy(S_I)
-
-        # Calculate NEP_phonon
-        sim_out_ch['G_dynamic'] = Gdynamic(Psat, beta, Tbath, Tc)
-        sim_out_ch['F_link'] = Flink(beta, Tbath, Tc)
-        sim_out_ch['NEP_phonon'] = NEP_phonon(sim_out_ch['F_link'], sim_out_ch['G_dynamic'], Tc)
 
         # Calculate NEP_johnson== NEP_J_tot, from Irwin and Hilton taking chsi(I) = 1.
         # Requires so many arguments I'm just coding it here.
