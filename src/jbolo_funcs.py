@@ -357,7 +357,9 @@ def run_optics(sim):
 
         dpdt = dPdT(nu, Tcmb, sim_out_ch['sources']['cmb']['effic_cumul'], AOmega, sim['bolo_config']['N_polarizations'])
         sim_out_ch['dpdt'] = np.copy(dpdt)
-
+        #
+        dpdt_rj = dPdTrj(nu,  sim_out_ch['sources']['cmb']['effic_cumul'], AOmega, sim['bolo_config']['N_polarizations'])
+        sim_out_ch['dpdt_rj'] = np.copy(dpdt_rj)
 
 
     ################################
@@ -465,13 +467,19 @@ def run_bolos(sim):
         sim_out_ch['corr_factor'] = sim_out_ch['NEP_C_total']/sim_out_ch['NEP_NC_total']
 
         # Convert NEPs [in Watts/sqrt(Hz)]to single-detector NETs [in K_cmb*sqrt(s)]
-        net_conversion_factor = 1/(sim_out_ch['dpdt']*np.sqrt(2))
+        net_conversion_factor    = 1/(sim_out_ch['dpdt']   *np.sqrt(2))
+        netrj_conversion_factor  = 1/(sim_out_ch['dpdt_rj']*np.sqrt(2))
         sim_out_ch['NET_NC_total'] = sim_out_ch['NEP_NC_total']*net_conversion_factor
         sim_out_ch['NET_C_total'] = sim_out_ch['NEP_C_total']*net_conversion_factor
+        sim_out_ch['NETrj_NC_total'] = sim_out_ch['NEP_NC_total']*netrj_conversion_factor
+        sim_out_ch['NETrj_C_total'] = sim_out_ch['NEP_C_total']*netrj_conversion_factor
+
 
         # Make NET_wafer, taking correlation factor and yield and detector count into consideration.
-        sim_out_ch['NET_C_wafer'] = sim_out_ch['NET_C_total']/np.sqrt(sim['bolo_config']['yield']*sim_ch['num_det_per_wafer'])
+        sim_out_ch['NET_C_wafer'] =  sim_out_ch['NET_C_total']/np.sqrt(sim['bolo_config']['yield']*sim_ch['num_det_per_wafer'])
         sim_out_ch['NET_NC_wafer'] = sim_out_ch['NET_NC_total']/np.sqrt(sim['bolo_config']['yield']*sim_ch['num_det_per_wafer'])
+        sim_out_ch['NETrj_C_wafer'] =  sim_out_ch['NETrj_C_total']/np.sqrt(sim['bolo_config']['yield']*sim_ch['num_det_per_wafer'])
+        sim_out_ch['NETrj_NC_wafer'] = sim_out_ch['NETrj_NC_total']/np.sqrt(sim['bolo_config']['yield']*sim_ch['num_det_per_wafer'])
 
 
 ##### Print a single optics channel's optical-chain info
@@ -536,12 +544,14 @@ def print_full_table(sim):
         'F_link': 1.0,
         'G_dynamic': 1e12,
         'dpdt': 1e12,
+        'dpdt_rj': 1e12,
         'NEP_phonon':1e18,
         'NEP_J_tot':1e18,
         'NEP_readout':1e18,
         'NEP_photonNC':1e18,
         'NEP_NC_total':1e18,
         'NET_NC_total':1e6,
+        'NETrj_NC_total':1e6,
         'NET_C_wafer':1e6,
         'corr_factor':1.0,
         'NEP_photonC':1e18,

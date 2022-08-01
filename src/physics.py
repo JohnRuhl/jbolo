@@ -313,3 +313,19 @@ def dPdT(nu, T, effic, AOmega, Npol=1):
     _dBdT = _prefac*(nu**4 / T**2)*(_expx/(_expx-1)**2)
 
     return np.trapz(_dBdT*AOmega*effic, nu)
+
+def dPdTrj(nu, effic, AOmega, Npol=1):
+    """
+    Change in power on the detector with change in Rayleigh-Jeans (RJ) temperature [W/K]
+    B_nu_rj = eff(nu)*Npol*k*T*nu^2/c^2
+    So dPdTrj = integral[ AOmega * effic(nu)*Npol*k*nu^2/c^2 ]dnu
+    Args:
+    freqs : observation frequencies [Hz]
+    effic : cumulative efficiency from source to detector
+    AOmega : of detector (lambda^2 for a single-moded detector)
+    Npol : number of polarizations
+    """
+
+    _dBdT = Npol*kB*(nu/c)**2
+
+    return np.trapz(_dBdT*AOmega*effic, nu)
