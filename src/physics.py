@@ -8,6 +8,7 @@
 
 import numpy as np
 import pickle as pkl
+import os
 
 # physical constants, etc.
 h = 6.6261e-34
@@ -136,9 +137,14 @@ def corr_facts(det_pitch, flamb_max=3.):
     #  effective number of independent horns is reduced by this correlation factor, to the extent that
     #  it is greater than zero.
 
+    # Retrieving the value of an environment variable with a default value
+    jbolo_path = os.environ.get("JBOLO_PATH", "./")  
+    ApertureFuncFile = jbolo_path+'ApertureFuncs/coherentApertCorr.pkl'
+    StopFuncFile = jbolo_path+'ApertureFuncs/coherentStopCorr.pkl'
+
     # Load the pre-calculated vectors
-    p_c_apert,c_apert = pkl.load(open("ApertureFuncs/coherentApertCorr.pkl", "rb"),encoding="latin1")
-    p_c_stop , c_stop  = pkl.load(open("ApertureFuncs/coherentStopCorr.pkl", "rb"),encoding="latin1")
+    p_c_apert,c_apert = pkl.load(open(ApertureFuncFile, "rb"),encoding="latin1")
+    p_c_stop , c_stop  = pkl.load(open(StopFuncFile, "rb"),encoding="latin1")
 
     # Detector pitch vectors for calculated correlations
     det_p = p_c_apert

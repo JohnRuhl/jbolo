@@ -50,15 +50,26 @@ For example, on my mac running anaconda python, I insert it in
 Or, you can use the following line (modified for your installation) in every notebook you use this stuff in:
 
     sys.path.insert(0,'/path/to/jbolo/python/')
+    
+To make your life easy in terms of accessing a few supporting files, you should
+create an environment variable pointing to the root of your jbolo installation.
+For example, if you are running the bash shell you'd add this to your .bash_profile :
 
-There are some Aperture function pickle files required to calcualate the horn-horn correlation factors.  Those live in jbolo/ApertureFuncs, and at this point you need to run your python scripts from the jbolo/ directory in order for the relevant physics.py function to find them.
+export JBOLO_PATH=/Users/ruhl/code/jbolo/
 
-You'll probably need Charlie Hill's hdf5 file containing a grid of atmospheric mission vs (frequency, pwv, elevation).  Download it from
+Right now this helps with two inputs:
+- There are some Aperture function pickle files required to calcualate the horn-horn correlation factors.  
+Those live in the jbolo/ApertureFuncs directory.   The code will find them if you define
+that environment variable;  your other option is to run things directly from your jbolo
+directory, or make symlinks to the relevant places.
+- You'll probably need Charlie Hill's hdf5 file containing a grid of atmospheric mission 
+vs (frequency, pwv, elevation).  Download it from 
 http://pbfs.physics.berkeley.edu/BoloCalc/ATM/atm_20201217.hdf5
-and put it in jbolo/atmos/atm_20201217.hdf5.  The yaml file needs to
-point to that file in the relevant spot (see example).
+and put it in jbolo/atmos/atm_20201217.hdf5 .  You can either point to 
+that file in the input yaml file, or not point to it and the code 
+should find it if you've put it there. 
 
-You can run it from within your jbolo directory (as the example notebooks do),
+You can run jbolo from within your jbolo directory (as the example notebooks do),
 or create a parallel directory with your scripts, yamls, and notebooks that call it.  This
 is what we do for cmb-s4, in S4's bolo_calc_runs/jbolo repo.
 
