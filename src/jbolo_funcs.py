@@ -305,6 +305,7 @@ def run_optics(sim):
                     tx_atmos, Tb_atmos = get_atmos_from_hdf5(sim,nu_ghz)
                     
                     if sim['sources']['atmosphere']['site'] != 'McMurdo':
+                    	print('Finding dPdpwv')
                     	# We have enough info to calculate dP_atmos/dpwv, which can be used later for g_pwv calc.
                     	_pwv1 = 100*(sim_src['pwv']//100)
                     	_pwv2 = _pwv1+100
