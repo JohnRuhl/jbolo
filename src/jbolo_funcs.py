@@ -304,15 +304,16 @@ def run_optics(sim):
                     # hdf5 file must be organized like the bolo-calc one.
                     tx_atmos, Tb_atmos = get_atmos_from_hdf5(sim,nu_ghz)
                     
-                    # We have enough info to calculate dP_atmos/dpwv, which can be used later for g_pwv calc.
-                    _pwv1 = 100*(sim_src['pwv']//100)
-                    _pwv2 = _pwv1+100
-                    _tx1,_Tb1 = get_atmos_from_hdf5(sim, nu_ghz, pwv_value=_pwv1)
-                    _tx2,_Tb2 = get_atmos_from_hdf5(sim, nu_ghz, pwv_value=_pwv2)
-                    _Inu1 = bb_spec_rad(nu, _Tb1, emiss=1.0)
-                    _Inu2 = bb_spec_rad(nu, _Tb2, emiss=1.0)
-                    dPatm = (_Inu2 - _Inu1)*AOmega*(sim['bolo_config']['N_polarizations']/2.0)
-                    sim_out_ch['sources'][src]['dPdpwv'] = np.trapz(10*effic_cumul*dPatm,nu)
+                    if sim['sources']['atmosphere']['site'] != 'McMurdo':
+                    	# We have enough info to calculate dP_atmos/dpwv, which can be used later for g_pwv calc.
+                    	_pwv1 = 100*(sim_src['pwv']//100)
+                    	_pwv2 = _pwv1+100
+                    	_tx1,_Tb1 = get_atmos_from_hdf5(sim, nu_ghz, pwv_value=_pwv1)
+                    	_tx2,_Tb2 = get_atmos_from_hdf5(sim, nu_ghz, pwv_value=_pwv2)
+                    	_Inu1 = bb_spec_rad(nu, _Tb1, emiss=1.0)
+                    	_Inu2 = bb_spec_rad(nu, _Tb2, emiss=1.0)
+                    	dPatm = (_Inu2 - _Inu1)*AOmega*(sim['bolo_config']['N_polarizations']/2.0)
+                    	sim_out_ch['sources'][src]['dPdpwv'] = np.trapz(10*effic_cumul*dPatm,nu)
 
                 # Add option for file here, not done yet.
 
