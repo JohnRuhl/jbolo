@@ -71,6 +71,19 @@ def get_atmos_from_hdf5(sim, nu, **kwargs):
     Tb = np.interp(nu,_nu,_Tb)
 
     return(tx,Tb)
+    
+def get_atmos_from_textfile(sim, nu_ghz):
+    filename = sim['sources']['atmosphere']['file']
+    try:
+        # File should have three columns, whitespace delimiters.
+        _nu, _tx, _Tb = np.loadtxt(filename,comments='#',unpack=True)
+    except:
+        print('Error loading atmosphere text file.')
+        
+    # Interpolate to requested frequencies
+    tx = np.interp(nu_ghz,_nu,_tx)
+    Tb = np.interp(nu_ghz,_nu,_Tb)
+    return(tx,Tb)
 
 
 # Fill in the default values of all the optical element properties.
@@ -187,6 +200,7 @@ def run_optics(sim):
         # so make the minimum efficiency 1e-6.
         effic = np.where(effic>1e-6,effic,1e-6)
 
+    
         sim_out_ch['optics']['detector']['band'] = np.copy(band)
         sim_out_ch['optics']['detector']['effic'] = np.copy(effic)
         sim_out_ch['optics']['detector']['effic_cumul'] = np.copy(effic_cumul)  # all ones
@@ -206,26 +220,36 @@ def run_optics(sim):
             # Find the absorption+ Ruze_scattering, using the method appropriate for the object type
             # For each element we use 1 = T + R + S + A
             # which is to say that the losses of each mechanism add.
-            obj_type = sim_elem['obj_type']
-            if obj_type == 'Mirror':
-                ohmic_loss = 1 - ohmic_eff(nu,float(sim_elem['conductivity']))
-                ruze_loss = 1 - ruze_eff(nu,float(sim_elem['surface_rough']))
-                emiss = ohmic_loss + ruze_loss
-            if obj_type == 'LossTangent':
-                emiss = loss_from_losstangent(nu,sim_elem['thickness'],sim_elem['index'],sim_elem['loss_tangent'])
-            if obj_type == 'Bespoke':
-                if (type(sim_elem['absorption']) is list):
-                    emiss = sim_elem['absorption'][chnum]*np.ones(len(nu))
-                elif isinstance(sim_elem['absorption'],str):
-                    nuemiss_in,emiss_in = np.loadtxt(sim_elem['absorption'], unpack=True)
-                    emiss = np.interp(nu_ghz,nuemiss_in,emiss_in,left=0, right=0)
-                else:
-                    emiss = sim_elem['absorption']*np.ones(len(nu))
-            if obj_type == 'ApertureStop':
-                pixd = sim_ch['horn_diameter']
-                fnum = sim['bolo_config']['f_number']
-                wf = sim['bolo_config']['waist_factor']
-                emiss = 1. - gaussian_spill_eff(nu, pixd, fnum, wf)
+            #obj_type = sim_elem['obj_type']
+            match sim_elem['obj_type']:
+                case 'Mirror':
+                    ohmic_loss = 1 - ohmic_eff(nu,float(sim_elem['conductivity']))
+                    ruze_loss = 1 - ruze_eff(nu,float(sim_elem['surface_rough']))
+                    emiss = ohmic_loss + ruze_loss
+                    
+                case 'LossTangent':
+                    emiss = loss_from_losstangent(nu,sim_elem['thickness'],sim_elem['index'],sim_elem['loss_tangent'])
+                    
+                case 'AlphaPowerLaw':
+                    emiss = loss_from_alphapowerlaw(nu,sim_elem['thickness'],sim_elem['a'],sim_elem['b'])
+                    
+                case 'Bespoke':
+                    if (type(sim_elem['absorption']) is list):
+                        emiss = sim_elem['absorption'][chnum]*np.ones(len(nu))
+                    elif isinstance(sim_elem['absorption'],str):
+                        nuemiss_in,emiss_in = np.loadtxt(sim_elem['absorption'], unpack=True)
+                        emiss = np.interp(nu_ghz,nuemiss_in,emiss_in,left=0, right=0)
+                    else:
+                        emiss = sim_elem['absorption']*np.ones(len(nu))
+                        
+                case 'ApertureStop':
+                    pixd = sim_ch['horn_diameter']
+                    fnum = sim['bolo_config']['f_number']
+                    wf = sim['bolo_config']['waist_factor']
+                    emiss = 1. - gaussian_spill_eff(nu, pixd, fnum, wf)
+                    
+                case _:
+                    print(f"Invalid optical element type:{sim_elem['obj_type']}")
 
             # Calculate total efficiency, and P_optical given temperature, emissivity, etc.
             # All of the loss mechanisms EXCEPT REFLECTIONS are assumed to couple to the same temperature, that of this element.
@@ -292,39 +316,55 @@ def run_optics(sim):
             sim_src = sim['sources'][src]
             sim_out_ch['sources'][src]={}
 
-            # probably the cmb, but you could use it for a room temperature load, say
-            if (sim_src['source_type'] == 'blackbody'):
-                Inu = bb_spec_rad(nu,sim_src['T'],sim_src['emiss'])
-                Pnu = Inu*AOmega*(sim['bolo_config']['N_polarizations']/2.0)
-                effic = (1-sim_src['emiss'])
-
             # atmosphere
-            if (src == 'atmosphere'):
-                if (sim_src['source_type'] == 'hdf5'):
-                    # hdf5 file must be organized like the bolo-calc one.
-                    tx_atmos, Tb_atmos = get_atmos_from_hdf5(sim,nu_ghz)
+            match src:
+                case 'cmb':  # For historical reasons this is the same function as the graybody.
+                    Inu = bb_spec_rad(nu,sim_src['T'],sim_src['emiss'])
+                    Pnu = Inu*AOmega*(sim['bolo_config']['N_polarizations']/2.0)
+                    effic = (1-sim_src['emiss'])
                     
-                    if sim['sources']['atmosphere']['site'] != 'McMurdo':
-                    	print('Finding dPdpwv')
-                    	# We have enough info to calculate dP_atmos/dpwv, which can be used later for g_pwv calc.
-                    	_pwv1 = 100*(sim_src['pwv']//100)
-                    	_pwv2 = _pwv1+100
-                    	_tx1,_Tb1 = get_atmos_from_hdf5(sim, nu_ghz, pwv_value=_pwv1)
-                    	_tx2,_Tb2 = get_atmos_from_hdf5(sim, nu_ghz, pwv_value=_pwv2)
-                    	_Inu1 = bb_spec_rad(nu, _Tb1, emiss=1.0)
-                    	_Inu2 = bb_spec_rad(nu, _Tb2, emiss=1.0)
-                    	dPatm = (_Inu2 - _Inu1)*AOmega*(sim['bolo_config']['N_polarizations']/2.0)
-                    	sim_out_ch['sources'][src]['dPdpwv'] = np.trapz(10*effic_cumul*dPatm,nu)
+                case 'graybody':
+                    Inu = bb_spec_rad(nu,sim_src['T'],sim_src['emiss'])
+                    Pnu = Inu*AOmega*(sim['bolo_config']['N_polarizations']/2.0)
+                    effic = (1-sim_src['emiss'])
+                    
+                case 'atmosphere':
+                    match sim_src['source_type']:
+                        case 'hdf5':
+                            # hdf5 file must be organized like the bolo-calc one.
+                            tx_atmos, Tb_atmos = get_atmos_from_hdf5(sim,nu_ghz)
+                    
+                            # If we can, find dPdpwv.  This works for the hdf5 cube except for the McMurdo (balloon-borne) site.
+                            if sim['sources']['atmosphere']['site'] != 'McMurdo':
+                                # We have enough info to calculate dP_atmos/dpwv, which can be used later for g_pwv calc.
+                                _pwv1 = 100*(sim_src['pwv']//100)
+                                _pwv2 = _pwv1+100
+                                _tx1,_Tb1 = get_atmos_from_hdf5(sim, nu_ghz, pwv_value=_pwv1)
+                                _tx2,_Tb2 = get_atmos_from_hdf5(sim, nu_ghz, pwv_value=_pwv2)
+                                _Inu1 = bb_spec_rad(nu, _Tb1, emiss=1.0)
+                                _Inu2 = bb_spec_rad(nu, _Tb2, emiss=1.0)
+                                dPatm = (_Inu2 - _Inu1)*AOmega*(sim['bolo_config']['N_polarizations']/2.0)
+                                sim_out_ch['sources'][src]['dPdpwv'] = np.trapz(10*effic_cumul*dPatm,nu)
 
-                # Add option for file here, not done yet.
+                    # Add option for file here, not done yet.
+                        case 'textfile':
+                            # Three column text file, (nu_ghz, transmission, T_blackbody)
+                            tx_atmos, Tb_atmos = get_atmos_from_textfile(sim,nu_ghz)
+                            
+                        case _:
+                            print(f"Invalid atmosphere source_type:{sim_src['source_type']}")
 
-                sim_out_ch['sources'][src]['Tb_atmos']=np.copy(Tb_atmos)
-                sim_out_ch['sources'][src]['tx_atmos']=np.copy(tx_atmos)
-                Inu = bb_spec_rad(nu, Tb_atmos, emiss=1.0)
-                Pnu = Inu*AOmega*(sim['bolo_config']['N_polarizations']/2.0)
-                effic = np.copy(tx_atmos)
+                    sim_out_ch['sources'][src]['Tb_atmos']=np.copy(Tb_atmos)
+                    sim_out_ch['sources'][src]['tx_atmos']=np.copy(tx_atmos)
+                    Inu = bb_spec_rad(nu, Tb_atmos, emiss=1.0)
+                    Pnu = Inu*AOmega*(sim['bolo_config']['N_polarizations']/2.0)
+                    effic = np.copy(tx_atmos)
 
-            # Add dust and synchrotron later.
+                case _:    # default, no match
+                    print(f'Invalid source:{src}, ignoring this source.')
+                    continue # Go to next source
+                
+                # Add dust and synchrotron later.
 
             sim_out_ch['sources'][src]['Pnu'] = np.copy(Pnu)
             Pnu_total += Pnu*effic_cumul
@@ -337,7 +377,7 @@ def run_optics(sim):
             effic_cumul *= effic
 
             # If we just did the atmosphere, calculate the band center and width to the celestial sources, ie above the atmos.
-            if (sim_src['source_type'] == 'hdf5'):
+            if src == 'atmosphere':
                 sim_out_ch['sky_bandwidth'] = np.trapz(effic_cumul,nu)/np.max(effic_cumul)
                 sim_out_ch['sky_bandcenter'] = np.trapz(effic_cumul*nu/np.max(effic_cumul), nu)/sim_out_ch['sky_bandwidth']
                 sim_out_ch['effic_tot_avg'] = np.mean(effic_cumul)
@@ -611,12 +651,12 @@ def print_full_table(sim):
 
 
 def print_lyot_efficiencies(sim):
-	# Special case, go in and print 'lyot'  efficiencies on one line
-	print('lyot effic_avg'.rjust(22),': ',end='')
-	for ch in sim['channels'].keys():
-		lyot_effic = sim['outputs'][ch]['optics']['lyot']['effic_avg']
-		print('{0:9.3f}'.format(lyot_effic),end='  ')
-	print('')
+    # Special case, go in and print 'lyot'  efficiencies on one line
+    print('lyot effic_avg'.rjust(22),': ',end='')
+    for ch in sim['channels'].keys():
+        lyot_effic = sim['outputs'][ch]['optics']['lyot']['effic_avg']
+        print('{0:9.3f}'.format(lyot_effic),end='  ')
+    print('')
 
 # A function that returns a detector (or other) passband that has soft
 # edges...

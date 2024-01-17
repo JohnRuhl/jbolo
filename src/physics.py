@@ -78,6 +78,24 @@ def loss_from_losstangent(freq, thick, ind, ltan):
     return 1. - np.exp(
         (-2. * np.pi * ind * ltan * thick) / (c/freq))
 
+# Halpern, Wishnow, Gush power law alpha model
+def loss_from_alphapowerlaw(nu,thick,a,b):
+    """
+    Dielectric loss from a model that is
+      transmission = exp(-alpha*thickness)
+      emissivity = 1-transmission
+      where
+      alpha = a*icm^b
+      where
+      icm is inverse cm, ie icm = nu_ghz/30e9.
+    """    
+    icm = nu/30.0e9   
+    
+    alpha = a*(icm**b)     # units are cm^-1
+    transmission = np.exp(-alpha*thick*100)  # thickness is in cm in this formula
+    emiss = 1-transmission
+    return(emiss)
+
 
 def n_occ(freq, temp):
     """
