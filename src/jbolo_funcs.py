@@ -153,59 +153,81 @@ def run_optics(sim):
         sim_out_ch['optics']['detector'] = {}
         #
         # Flat bands, normalized by det_eff
-        if (sim_ch['band_response']['method'] == 'flat'):
-            if ('nu_lowedge' in sim_ch['band_response'].keys()):  # check if limits given
-                _nulow = sim_ch['band_response']['nu_lowedge']
-                _nuhigh = sim_ch['band_response']['nu_highedge']
-                band = np.where((nu_ghz>=_nulow) & (nu_ghz<=_nuhigh), 1.0, 1e-6)
-                effic = band*sim_ch['det_eff']
-                sim_out_ch['det_bandwidth'] = 1e9*(_nuhigh - _nulow)   # in Hz
-                sim_out_ch['det_bandcenter'] = 1e9*(_nuhigh+_nulow)/2  # in Hz
-            else:
-                band = np.ones(len(nu))
-                effic = band*sim_ch['det_eff'] # just make a flat band covering all the integration range.
-                sim_out_ch['det_bandwidth'] = (nu[-1]-nu[0])   # in Hz
-                sim_out_ch['det_bandcenter'] = ((nu[-1]+nu[0])/2)
+        match sim_ch['band_response']['method']:
+            case 'flat':
+                if ('nu_lowedge' in sim_ch['band_response'].keys()):  # check if limits given
+                    _nulow = sim_ch['band_response']['nu_lowedge']
+                    _nuhigh = sim_ch['band_response']['nu_highedge']
+                    band = np.where((nu_ghz>=_nulow) & (nu_ghz<=_nuhigh), 1.0, 1e-6)
+                    effic = band*sim_ch['det_eff']
+                    sim_out_ch['det_bandwidth'] = 1e9*(_nuhigh - _nulow)   # in Hz
+                    sim_out_ch['det_bandcenter'] = 1e9*(_nuhigh+_nulow)/2  # in Hz
+                else:
+                    band = np.ones(len(nu))
+                    effic = band*sim_ch['det_eff'] # just make a flat band covering all the integration range.
+                    sim_out_ch['det_bandwidth'] = (nu[-1]-nu[0])   # in Hz
+                    sim_out_ch['det_bandcenter'] = ((nu[-1]+nu[0])/2)
         #
         # Read band from file, normalized by det_eff.  File expected to be in GHz.
-        if (sim_ch['band_response']['method'] == 'bandfile'):
-            nuband_in,band_in = np.loadtxt(sim_ch['band_response']['fname'], unpack=True)
-            band = np.interp(nu_ghz,nuband_in,band_in,left=0, right=0)
-            sim_out_ch['det_bandwidth'] = np.trapz(band, nu)/np.max(band)
-            sim_out_ch['det_bandcenter'] = np.trapz(band*nu/np.max(band), nu)/sim_out_ch['det_bandwidth']
-            effic = band*sim_ch['det_eff']  # shaped by band, so peak is probably the indicator of interest
+            case 'bandfile':
+                nuband_in,band_in = np.loadtxt(sim_ch['band_response']['fname'], unpack=True)
+                band = np.interp(nu_ghz,nuband_in,band_in,left=0, right=0)
+                sim_out_ch['det_bandwidth'] = np.trapz(band, nu)/np.max(band)
+                sim_out_ch['det_bandcenter'] = np.trapz(band*nu/np.max(band), nu)/sim_out_ch['det_bandwidth']
+                effic = band*sim_ch['det_eff']  # shaped by band, so peak is probably the indicator of interest
         #
         # Specify bandshape in two numpy vectors already loaded into sim, nuband_in (frequency in GHz) and band_in.
         # Normalized by det_eff
-        if (sim_ch['band_response']['method'] == 'band_vector'):
-            nuband_in = sim_ch['band_response']['nuband_in']
-            band_in =   sim_ch['band_response']['band_in']
-            band = np.interp(nu_ghz,nuband_in,band_in,left=0, right=0)
-            sim_out_ch['det_bandwidth'] = np.trapz(band, nu)/np.max(band)
-            sim_out_ch['det_bandcenter'] = np.trapz(band*nu/np.max(band), nu)/sim_out_ch['det_bandwidth']
-            effic = band*sim_ch['det_eff']  # shaped by band, so peak is probably the indicator of interest
+            case 'band_vector':
+                nuband_in = sim_ch['band_response']['nuband_in']
+                band_in =   sim_ch['band_response']['band_in']
+                band = np.interp(nu_ghz,nuband_in,band_in,left=0, right=0)
+                sim_out_ch['det_bandwidth'] = np.trapz(band, nu)/np.max(band)
+                sim_out_ch['det_bandcenter'] = np.trapz(band*nu/np.max(band), nu)/sim_out_ch['det_bandwidth']
+                effic = band*sim_ch['det_eff']  # shaped by band, so peak is probably the indicator of interest
         #
         # Logistic model, normalized by det_eff, edges specified in GHz.
-        if (sim_ch['band_response']['method'] == 'logistic'):
-            _nulow =  sim_ch['band_response']['nu_lowedge']
-            _nuhigh = sim_ch['band_response']['nu_highedge']
-            _a = sim_ch['band_response']['a']
-            _n = sim_ch['band_response']['n']
-            band = logistic_bandmodel(nu_ghz, _nulow, _nuhigh,_a,_n)
-            sim_out_ch['det_bandwidth'] = np.trapz(band, nu)/np.max(band)
-            sim_out_ch['det_bandcenter'] = np.trapz(band*nu, nu)/sim_out_ch['det_bandwidth']
-            effic = band*sim_ch['det_eff']
+            case 'logistic':
+                _nulow =  sim_ch['band_response']['nu_lowedge']
+                _nuhigh = sim_ch['band_response']['nu_highedge']
+                _a = sim_ch['band_response']['a']
+                _n = sim_ch['band_response']['n']
+                band = logistic_bandmodel(nu_ghz, _nulow, _nuhigh,_a,_n)
+                sim_out_ch['det_bandwidth'] = np.trapz(band, nu)/np.max(band)
+                sim_out_ch['det_bandcenter'] = np.trapz(band*nu, nu)/sim_out_ch['det_bandwidth']
+                effic = band*sim_ch['det_eff']
+                
+            case 'AlphaPowerLaw':
+                # This is really for blue leaks, some of which are thought to rise with frequency.
+                # band = a + (nu/nu0)^b, with a maximum of 1
+                # Note that this function does *not* use the detector efficiency in the yaml file, ie sim_ch['det_eff']
+                _nulow =  sim_ch['band_response']['nu_lowedge']
+                _nuhigh = sim_ch['band_response']['nu_highedge']
+                _a = sim_ch['band_response']['a']
+                _b = sim_ch['band_response']['b']
+                _nu0 = sim_ch['band_response']['nu0']
+                band = _a + (nu_ghz/_nu0)**_b
+                band = np.where(band<1,band,1.0) 
+                
+            case _:
+                print('Invalid detector response method.') 
 
         # Finally, if anywhere we have effic = too small, things will blow up later,
         # so make the minimum efficiency 1e-6.
         effic = np.where(effic>1e-6,effic,1e-6)
-
     
         sim_out_ch['optics']['detector']['band'] = np.copy(band)
         sim_out_ch['optics']['detector']['effic'] = np.copy(effic)
+        sim_out_ch['optics']['detector']['effic_avg'] = sim_ch['det_eff']
+        sim_out_ch['optics']['detector']['effic_cumul_avg'] = 1.0
         sim_out_ch['optics']['detector']['effic_cumul'] = np.copy(effic_cumul)  # all ones
         # Don't calculate a power of the detector on itself.
         sim_out_ch['optics']['detector']['P_opt'] = 0.0
+
+        # for use later in optical element efficiency calculations
+        detector_efficiency_integral = np.trapz(sim_out_ch['optics']['detector']['effic'], nu)
+        np.trapz(effic*                         sim_out_ch['optics']['detector']['effic'],nu)/detector_efficiency_integral
+
         # Do update the cumulative efficiency, for use with the next element.
         effic_cumul *= effic
 
@@ -283,9 +305,18 @@ def run_optics(sim):
             # Store the optical power absorbed by the bolo from this element, and the efficiency vs nu, of this element
             sim_out_ch['optics'][elem]['P_opt'] = np.copy(P_opt_elem)
             sim_out_ch['optics'][elem]['effic'] = np.copy(effic)
-            sim_out_ch['optics'][elem]['effic_avg'] = np.mean(effic) # only make sense for flat bands.
+            
+            # No longer in use:  sim_out_ch['optics'][elem]['effic_avg'] = np.mean(effic) # only make sense for flat bands.
+            # Calculate the "average efficiency" for this optical element, which we take to be
+            # eff_element_avg = [ integral( effic_element(nu)*effic_detector(nu)) ] / [ integral( effic_detector(nu)) ]
+            sim_out_ch['optics'][elem]['effic_avg'] = \
+                np.trapz(effic*sim_out_ch['optics']['detector']['effic'],nu)/detector_efficiency_integral
+            
             # The cumulative efficiency we store at this element is *to* (not through) the relevant element.
             sim_out_ch['optics'][elem]['effic_cumul'] = np.copy(effic_cumul)
+            sim_out_ch['optics'][elem]['effic_cumul_avg'] = \
+                np.trapz(effic_cumul,nu)/(detector_efficiency_integral/sim_ch['det_eff'])
+
             # Update cumulative efficiency, for use with the next element.
             effic_cumul *= effic
 
@@ -301,12 +332,17 @@ def run_optics(sim):
         # division will blow up if we're using a detector band model that has zeros in it,
         # so avoid doing that.
         #
-        # Efficiency of all the non-detector optical elements
-        # The "avg" versions of these only make sense for flat bands.
-        sim_out_ch['optics_effic_total']=effic_cumul/sim_out_ch['optics']['detector']['effic']
-        sim_out_ch['optics_effic_total_avg']=np.mean(sim_out_ch['optics_effic_total'])
+        # Efficiency of all the detector + optical elements:
         sim_out_ch['inst_effic_total']=np.copy(effic_cumul)
-        sim_out_ch['inst_effic_avg']=np.mean(effic_cumul)
+        #
+        # Efficiency of the optical elements (not detector)
+        sim_out_ch['optics_effic_total']=effic_cumul/sim_out_ch['optics']['detector']['effic']
+        sim_out_ch['optics_effic_total_avg']= \
+            np.trapz(sim_out_ch['optics_effic_total']*sim_out_ch['optics']['detector']['effic'],nu)/detector_efficiency_integral
+        sim_out_ch['inst_effic_avg'] =  sim_out_ch['optics_effic_total_avg'] * sim_ch['det_eff']
+
+
+
         #
         # Pnu of all the instrument things (optics) just before the detector
         sim_out_ch['optics_Pnu_total'] = Pnu_total/sim_out_ch['optics']['detector']['effic']
@@ -321,12 +357,12 @@ def run_optics(sim):
                 case 'cmb':  # For historical reasons this is the same function as the graybody.
                     Inu = bb_spec_rad(nu,sim_src['T'],sim_src['emiss'])
                     Pnu = Inu*AOmega*(sim['bolo_config']['N_polarizations']/2.0)
-                    effic = (1-sim_src['emiss'])
+                    effic = (1-sim_src['emiss'])*np.ones(len(nu))
                     
                 case 'graybody':
                     Inu = bb_spec_rad(nu,sim_src['T'],sim_src['emiss'])
                     Pnu = Inu*AOmega*(sim['bolo_config']['N_polarizations']/2.0)
-                    effic = (1-sim_src['emiss'])
+                    effic = (1-sim_src['emiss'])*np.ones(len(nu))
                     
                 case 'atmosphere':
                     match sim_src['source_type']:
@@ -374,14 +410,27 @@ def run_optics(sim):
             sim_out_ch['sources'][src]['P_opt'] = np.copy(P_opt_elem)
             sim_out_ch['sources'][src]['effic'] = np.copy(effic)
             sim_out_ch['sources'][src]['effic_cumul'] = np.copy(effic_cumul)
-            effic_cumul *= effic
+
+            #     
+            sim_out_ch['sources'][src]['effic_avg'] = \
+                np.trapz(sim_out_ch['optics']['detector']['effic']*sim_out_ch['sources'][src]['effic'],nu)/detector_efficiency_integral
+            sim_out_ch['sources'][src]['effic_cumul_avg'] = \
+                np.trapz(sim_out_ch['optics']['detector']['effic']*sim_out_ch['sources'][src]['effic_cumul'],nu)/detector_efficiency_integral
 
             # If we just did the atmosphere, calculate the band center and width to the celestial sources, ie above the atmos.
             if src == 'atmosphere':
                 sim_out_ch['sky_bandwidth'] = np.trapz(effic_cumul,nu)/np.max(effic_cumul)
                 sim_out_ch['sky_bandcenter'] = np.trapz(effic_cumul*nu/np.max(effic_cumul), nu)/sim_out_ch['sky_bandwidth']
-                sim_out_ch['effic_tot_avg'] = np.mean(effic_cumul)
+                #
+                # Find a measure of total system optical efficiency, including the atmosphere.  
+                # 
+                # We avoid doing more integrals because the shaped band is problematic for these cumulative efficiencies.
+                sim_out_ch['effic_tot_avg'] = sim_out_ch['inst_effic_avg'] * sim_out_ch['sources'][src]['effic_avg']
 
+
+            
+            effic_cumul *= effic
+        
         # report scalars of things summed over all elements, and over frequency
         sim['outputs'][ch]['P_opt'] = np.copy(P_opt_cumul)
 
@@ -574,8 +623,8 @@ def print_optics(sim,ch):
             popttotal += _popt
             if items == 'optics':
                 poptonly_total += _popt
-            _effic = np.mean(sim['outputs'][ch][items][elem]['effic'])
-            _effic_cumul = np.mean(sim['outputs'][ch][items][elem]['effic_cumul'])
+            _effic =       sim['outputs'][ch][items][elem]['effic_avg']
+            _effic_cumul = sim['outputs'][ch][items][elem]['effic_cumul_avg']
             print('{0:15s}:  {1:8.4f}   {2:8.4f}  {3:8.4f}'.format(elem, _popt*1e12,_effic,_effic_cumul))
 
     print('P_opticsonly_total = {0:8.4e}'.format(poptonly_total))
