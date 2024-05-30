@@ -27,7 +27,7 @@ def get_atmos_from_hdf5(sim, nu, **kwargs):
         file_atmos = sim['sources']['atmosphere']['file']
     else:
         jbolo_path = os.environ.get("JBOLO_PATH", "./")
-        file_atmos = jbolo_path+'atmos/atm_20201217.hdf5'
+        file_atmos = os.path.join(jbolo_path,'atmos/atm_20201217.hdf5')
 
     site =       sim['sources']['atmosphere']['site']
     elev =   int(sim['sources']['atmosphere']['elevation'])
