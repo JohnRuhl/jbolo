@@ -1,9 +1,10 @@
 import numpy as np
 import yaml
-from physics import *
 import h5py as hp
 import toml
 import os
+
+from .physics import *
 
 # physical constants, etc.
 h = 6.6261e-34
