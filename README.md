@@ -37,19 +37,9 @@ Two python jupyter notebooks of interest are in the top-level directory.
 
 ## Setup/Configuration
 
-You'll need to set things up so that your sys.path can find the jbolo/python directory.  
+To install jbolo run this in the main directory:
 
-For example, on my mac running anaconda python, I insert it in
-
-    ~/.ipython/profile_default/ipython_config.py
-    ## lines of code to run at IPython startup.
-    c.InteractiveShellApp.exec_lines = [
-      "sys.path.append('/path/to/jbolo/python')"
-      ]
-
-Or, you can use the following line (modified for your installation) in every notebook you use this stuff in:
-
-    sys.path.insert(0,'/path/to/jbolo/python/')
+    pip install . 
     
 To make your life easy in terms of accessing a few supporting files, you should
 create an environment variable pointing to the root of your jbolo installation.
