@@ -572,10 +572,10 @@ def run_bolos(sim):
         NEP2_J_shunt =(4*kB*Tbath*P_elec*R_shunt/R_bolo) * ((loopgain-1)/(loopgain))**2
         sim_out_ch['NEP_J_bolo']  = np.sqrt(NEP2_J_bolo)
         sim_out_ch['NEP_J_shunt'] = np.sqrt(NEP2_J_shunt)
-        sim_out_ch['NEP_J_tot']   = np.sqrt(NEP2_J_bolo + NEP2_J_shunt)
+        sim_out_ch['NEP_J_total']   = np.sqrt(NEP2_J_bolo + NEP2_J_shunt)
 
         # Calculate NEP_readout, must come after everything else to use "fraction" method
-        NEP_NC_allbutreadout2 = sim_out_ch['NEP_phonon']**2 + sim_out_ch['NEP_photonNC']**2 + sim_out_ch['NEP_J_tot']**2
+        NEP_NC_allbutreadout2 = sim_out_ch['NEP_phonon']**2 + sim_out_ch['NEP_photonNC']**2 + sim_out_ch['NEP_J_total']**2
         if (sim['readout']['method']=='fraction'):
             # readout noise leads to an increase in NEP_NC_total of X%
             # NEP_total**2 = (1+read_frac)**2*(NEP_photon**2 + NEP_phonon**2 + NEP_J_tot**2) = (NEP_photon**2 + NEP_phonon**2 + NEP_J_tot**2 + NEP_readout**2)
@@ -591,10 +591,10 @@ def run_bolos(sim):
         # Subscript "C" means "using horn-horn photon noise correlations"
         # corr_factor is the ratio of those two, and depends on the relative size of various NEP contributions.
         sim_out_ch['NEP_NC_total'] = np.sqrt(sim_out_ch['NEP_readout']**2 + NEP_NC_allbutreadout2)  # ignore pixel correlations in bose noise
-        sim_out_ch['NEP_C_total']  = np.sqrt(sim_out_ch['NEP_readout']**2 + sim_out_ch['NEP_phonon']**2 + sim_out_ch['NEP_photonC']**2 + sim_out_ch['NEP_J_tot']**2)   # include pixel correlations in bose noise
+        sim_out_ch['NEP_C_total']  = np.sqrt(sim_out_ch['NEP_readout']**2 + sim_out_ch['NEP_phonon']**2 + sim_out_ch['NEP_photonC']**2 + sim_out_ch['NEP_J_total']**2)   # include pixel correlations in bose noise
         sim_out_ch['corr_factor'] = sim_out_ch['NEP_C_total']/sim_out_ch['NEP_NC_total']
         #
-        sim_out_ch['NEP_dark'] = np.sqrt(sim_out_ch['NEP_readout']**2 + sim_out_ch['NEP_phonon']**2 + sim_out_ch['NEP_J_tot']**2)
+        sim_out_ch['NEP_dark'] = np.sqrt(sim_out_ch['NEP_readout']**2 + sim_out_ch['NEP_phonon']**2 + sim_out_ch['NEP_J_total']**2)
 
         # Convert NEPs [in Watts/sqrt(Hz)]to single-detector NETs [in K_cmb*sqrt(s)]
         net_conversion_factor    = 1/(sim_out_ch['dpdt']   *np.sqrt(2))
@@ -680,7 +680,7 @@ def print_full_table(sim):
         'dpdt': 1e12,
         'dpdt_rj': 1e12,
         'NEP_readout':1e18,
-        'NEP_J_tot':1e18,
+        'NEP_J_total':1e18,
         'NEP_phonon':1e18,
         'NEP_dark':1e18,
         'NEP_photonNC':1e18,
