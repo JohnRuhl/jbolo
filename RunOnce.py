@@ -17,7 +17,7 @@ import numpy as np
 import yaml
 import pickle
 import argparse
-from jbolo_funcs import *
+from jbolo.jbolo_funcs import *
 
 # Parse the arguments
 parser = argparse.ArgumentParser(description='Run baseline model for a given yaml file.')
