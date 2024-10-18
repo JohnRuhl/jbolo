@@ -1,9 +1,12 @@
 import numpy as np
 import yaml
-from physics import *
 import h5py as hp
 import toml
 import os
+from copy import copy #np.copy breaks scalars
+
+from .physics import *
+import jbolo.utils as utils
 
 # physical constants, etc.
 h = 6.6261e-34
@@ -27,7 +30,7 @@ def get_atmos_from_hdf5(sim, nu, **kwargs):
         file_atmos = sim['sources']['atmosphere']['file']
     else:
         jbolo_path = os.environ.get("JBOLO_PATH", "./")
-        file_atmos = jbolo_path+'atmos/atm_20201217.hdf5'
+        file_atmos = os.path.join(jbolo_path,'atmos/atm_20201217.hdf5')
 
     site =       sim['sources']['atmosphere']['site']
     elev =   int(sim['sources']['atmosphere']['elevation'])
@@ -133,7 +136,7 @@ def run_optics(sim):
         # Create frequency vector, save it to dictionary
         nu_ghz = np.arange(sim_ch['nu_low'], sim_ch['nu_high'], sim['config']['dnu'])
         nu = nu_ghz*1e9  # in Hz
-        sim_out_ch['nu'] = np.copy(nu_ghz)  # save copy for outputs
+        sim_out_ch['nu'] = copy(nu_ghz)  # save copy for outputs
 
         # Decide how to handle A*Omega;  is it a fixed number  of modes,
         # or is it set (eg geometrically) to a value?
@@ -216,11 +219,11 @@ def run_optics(sim):
         # so make the minimum efficiency 1e-6.
         effic = np.where(effic>1e-6,effic,1e-6)
     
-        sim_out_ch['optics']['detector']['band'] = np.copy(band)
-        sim_out_ch['optics']['detector']['effic'] = np.copy(effic)
+        sim_out_ch['optics']['detector']['band'] = copy(band)
+        sim_out_ch['optics']['detector']['effic'] = copy(effic)
         sim_out_ch['optics']['detector']['effic_avg'] = sim_ch['det_eff']
         sim_out_ch['optics']['detector']['effic_cumul_avg'] = 1.0
-        sim_out_ch['optics']['detector']['effic_cumul'] = np.copy(effic_cumul)  # all ones
+        sim_out_ch['optics']['detector']['effic_cumul'] = copy(effic_cumul)  # all ones
         # Don't calculate a power of the detector on itself.
         sim_out_ch['optics']['detector']['P_opt'] = 0.0
 
@@ -298,13 +301,13 @@ def run_optics(sim):
             effic = 1.0 - emiss_effective - tempdict['reflection']
             Inu = bb_spec_rad(nu, sim_elem['temperature'], emiss_effective)  # This has units of W/m^2/sr/Hz, and is coded for 2 polarizations.
             Pnu = Inu*AOmega*(sim['bolo_config']['N_polarizations']/2.0) # this is the power per Hz emitted by this element.
-            sim_out_ch['optics'][elem]['Pnu'] = np.copy(Pnu)  # save the watts/Hz for this element.
+            sim_out_ch['optics'][elem]['Pnu'] = copy(Pnu)  # save the watts/Hz for this element.
             Pnu_total += Pnu*effic_cumul  # store how much of this element's Pnu gets to the bolometer, Watts/Hz.
             P_opt_elem = np.trapz(effic_cumul*Pnu,nu)  # Watts that get to the bolometer from this elmeent.
             P_opt_cumul += P_opt_elem   # add this element to the total.
             # Store the optical power absorbed by the bolo from this element, and the efficiency vs nu, of this element
-            sim_out_ch['optics'][elem]['P_opt'] = np.copy(P_opt_elem)
-            sim_out_ch['optics'][elem]['effic'] = np.copy(effic)
+            sim_out_ch['optics'][elem]['P_opt'] = copy(P_opt_elem)
+            sim_out_ch['optics'][elem]['effic'] = copy(effic)
             
             # No longer in use:  sim_out_ch['optics'][elem]['effic_avg'] = np.mean(effic) # only make sense for flat bands.
             # Calculate the "average efficiency" for this optical element, which we take to be
@@ -313,7 +316,7 @@ def run_optics(sim):
                 np.trapz(effic*sim_out_ch['optics']['detector']['effic'],nu)/detector_efficiency_integral
             
             # The cumulative efficiency we store at this element is *to* (not through) the relevant element.
-            sim_out_ch['optics'][elem]['effic_cumul'] = np.copy(effic_cumul)
+            sim_out_ch['optics'][elem]['effic_cumul'] = copy(effic_cumul)
             sim_out_ch['optics'][elem]['effic_cumul_avg'] = \
                 np.trapz(effic_cumul,nu)/(detector_efficiency_integral/sim_ch['det_eff'])
 
@@ -333,7 +336,7 @@ def run_optics(sim):
         # so avoid doing that.
         #
         # Efficiency of all the detector + optical elements:
-        sim_out_ch['inst_effic_total']=np.copy(effic_cumul)
+        sim_out_ch['inst_effic_total']=copy(effic_cumul)
         #
         # Efficiency of the optical elements (not detector)
         sim_out_ch['optics_effic_total']=effic_cumul/sim_out_ch['optics']['detector']['effic']
@@ -390,11 +393,11 @@ def run_optics(sim):
                         case _:
                             print(f"Invalid atmosphere source_type:{sim_src['source_type']}")
 
-                    sim_out_ch['sources'][src]['Tb_atmos']=np.copy(Tb_atmos)
-                    sim_out_ch['sources'][src]['tx_atmos']=np.copy(tx_atmos)
+                    sim_out_ch['sources'][src]['Tb_atmos']=copy(Tb_atmos)
+                    sim_out_ch['sources'][src]['tx_atmos']=copy(tx_atmos)
                     Inu = bb_spec_rad(nu, Tb_atmos, emiss=1.0)
                     Pnu = Inu*AOmega*(sim['bolo_config']['N_polarizations']/2.0)
-                    effic = np.copy(tx_atmos)
+                    effic = copy(tx_atmos)
 
                 case _:    # default, no match
                     print(f'Invalid source:{src}, ignoring this source.')
@@ -402,14 +405,14 @@ def run_optics(sim):
                 
                 # Add dust and synchrotron later.
 
-            sim_out_ch['sources'][src]['Pnu'] = np.copy(Pnu)
+            sim_out_ch['sources'][src]['Pnu'] = copy(Pnu)
             Pnu_total += Pnu*effic_cumul
             P_opt_elem = np.trapz(effic_cumul*Pnu,nu)
             P_opt_cumul += P_opt_elem
             # calculate and store the total optical power on the bolometer from this element.
-            sim_out_ch['sources'][src]['P_opt'] = np.copy(P_opt_elem)
-            sim_out_ch['sources'][src]['effic'] = np.copy(effic)
-            sim_out_ch['sources'][src]['effic_cumul'] = np.copy(effic_cumul)
+            sim_out_ch['sources'][src]['P_opt'] = copy(P_opt_elem)
+            sim_out_ch['sources'][src]['effic'] = copy(effic)
+            sim_out_ch['sources'][src]['effic_cumul'] = copy(effic_cumul)
 
             #     
             sim_out_ch['sources'][src]['effic_avg'] = \
@@ -432,41 +435,41 @@ def run_optics(sim):
             effic_cumul *= effic
         
         # report scalars of things summed over all elements, and over frequency
-        sim['outputs'][ch]['P_opt'] = np.copy(P_opt_cumul)
+        sim['outputs'][ch]['P_opt'] = copy(P_opt_cumul)
 
         # report vectors of things summed over all elements, but not frequency
-        sim['outputs'][ch]['Pnu_total'] = np.copy(Pnu_total)
+        sim['outputs'][ch]['Pnu_total'] = copy(Pnu_total)
 
         # calculate the correlation factor for that channel, due to horn size, f/#, and frequencies
         fnum = sim['bolo_config']['f_number']
         dpix = sim_ch['pixel_spacing']
         lam_mean = c/sim_out_ch['det_bandcenter']
         det_pitch_flam = dpix/(fnum*lam_mean)
-        sim['outputs'][ch]['det_pitch_flam']=np.copy(det_pitch_flam)
+        sim['outputs'][ch]['det_pitch_flam']=copy(det_pitch_flam)
         aperture_factor, stop_factor = corr_facts(det_pitch_flam, flamb_max = 4.)
-        sim['outputs'][ch]['aperture_factor'] = np.copy(aperture_factor)
-        sim['outputs'][ch]['stop_factor'] = np.copy(stop_factor)
+        sim['outputs'][ch]['aperture_factor'] = copy(aperture_factor)
+        sim['outputs'][ch]['stop_factor'] = copy(stop_factor)
 
         # Simple photon noise first, with no pixel-pixel correlations
         NEP_photonNC, NEP_photon_poissonNC, NEP_photon_boseNC = photon_NEP_single(Pnu_total,nu)
-        sim_out_ch['NEP_photonNC'] = np.copy(NEP_photonNC)
-        sim_out_ch['NEP_photon_poissonNC'] = np.copy(NEP_photon_poissonNC)
-        sim_out_ch['NEP_photon_boseNC'] = np.copy(NEP_photon_boseNC)
+        sim_out_ch['NEP_photonNC'] = copy(NEP_photonNC)
+        sim_out_ch['NEP_photon_poissonNC'] = copy(NEP_photon_poissonNC)
+        sim_out_ch['NEP_photon_boseNC'] = copy(NEP_photon_boseNC)
 
         # Alternate version as a check
         NEP_photonNC, NEP_photon_poissonNC, NEP_photon_boseNC, n_avg = photon_NEP_single_v2(Pnu_total,nu)
-        sim_out_ch['NEP_photonNC_v2'] = np.copy(NEP_photonNC)
-        sim_out_ch['NEP_photon_poissonNC_v2'] = np.copy(NEP_photon_poissonNC)
-        sim_out_ch['NEP_photon_boseNC_v2'] = np.copy(NEP_photon_boseNC)
-        sim_out_ch['n_avg']=np.copy(n_avg)
+        sim_out_ch['NEP_photonNC_v2'] = copy(NEP_photonNC)
+        sim_out_ch['NEP_photon_poissonNC_v2'] = copy(NEP_photon_poissonNC)
+        sim_out_ch['NEP_photon_boseNC_v2'] = copy(NEP_photon_boseNC)
+        sim_out_ch['n_avg']=copy(n_avg)
 
         # Now do it with pixel-pixel correlations
         Pnu_stop = sim['outputs'][ch]['optics']['lyot']['Pnu']*sim_out_ch['optics']['lyot']['effic_cumul']
         Pnu_apert = Pnu_total - Pnu_stop
         NEP_photonC, NEP_photon_poissonC, NEP_photon_boseC = photon_NEP_with_corrs(Pnu_apert, Pnu_stop, aperture_factor, stop_factor, nu)
-        sim_out_ch['NEP_photonC'] = np.copy(NEP_photonC)
-        sim_out_ch['NEP_photon_poissonC'] = np.copy(NEP_photon_poissonC)
-        sim_out_ch['NEP_photon_boseC'] = np.copy(NEP_photon_boseC)
+        sim_out_ch['NEP_photonC'] = copy(NEP_photonC)
+        sim_out_ch['NEP_photon_poissonC'] = copy(NEP_photon_poissonC)
+        sim_out_ch['NEP_photon_boseC'] = copy(NEP_photon_boseC)
 
 
         # Find conversion factor to NET, which is dP_opt/dT_cmb
@@ -477,10 +480,10 @@ def run_optics(sim):
         #   dP_opt/dT_cmb = trapz(dPn_dT_cmb)
 
         dpdt = dPdT(nu, Tcmb, sim_out_ch['sources']['cmb']['effic_cumul'], AOmega, sim['bolo_config']['N_polarizations'])
-        sim_out_ch['dpdt'] = np.copy(dpdt)
+        sim_out_ch['dpdt'] = copy(dpdt)
         #
         dpdt_rj = dPdTrj(nu,  sim_out_ch['sources']['cmb']['effic_cumul'], AOmega, sim['bolo_config']['N_polarizations'])
-        sim_out_ch['dpdt_rj'] = np.copy(dpdt_rj)
+        sim_out_ch['dpdt_rj'] = copy(dpdt_rj)
         #
         if 'dPdpwv' in sim_out_ch['sources']['atmosphere']:
             sim_out_ch['g_pwv'] = sim_out_ch['sources']['atmosphere']['dPdpwv']/sim_out_ch['dpdt']
@@ -526,19 +529,19 @@ def run_bolos(sim):
             Psat = sim_ch['psat']
         if sim['bolo_config']['psat_method'] == 'from_optical_power':
             Psat = sim['bolo_config']['psat_factor']*sim_out_ch['P_opt']
-        sim_out_ch['P_sat'] = np.copy(Psat)
+        sim_out_ch['P_sat'] = copy(Psat)
 
         # Calculate and save electrical power, and from that the bolometer voltage
         P_elec = Psat - sim_out_ch['P_opt']
         if P_elec<0:
             print('Warning:  Detector saturated, channel: {0:s}'.format(ch))
-        sim_out_ch['P_elec']= np.copy(P_elec)
+        sim_out_ch['P_elec']= copy(P_elec)
         V_bolo = np.sqrt(P_elec*R_bolo)
 
         # Calculate NEP_phonon.
         # This also calculates Gdynamic, which may be needed for loop gain calc (next)
         Gdyn = Gdynamic(Psat, beta, Tbath, Tc)
-        sim_out_ch['G_dynamic'] = np.copy(Gdyn)
+        sim_out_ch['G_dynamic'] = copy(Gdyn)
         if 'F_link_method' in sim['bolo_config'].keys():
             if sim['bolo_config']['F_link_method']=='specified':
                 sim_out_ch['F_link'] = sim_ch['F_link']
@@ -558,11 +561,11 @@ def run_bolos(sim):
                 loopgain = (sim_ch['alpha']*P_elec)/(Gdyn*Tc)
         else:
             loopgain = 1000. # set to near-infinite if user has not specified a method
-        sim_out_ch['loopgain'] = np.copy(loopgain)
+        sim_out_ch['loopgain'] = copy(loopgain)
 
         # Calculate the magnitude of the current responsivity.  (We ignore the sign.)
         S_I = (loopgain/(loopgain+1))/V_bolo   # amps/watt
-        sim_out_ch['S_I'] = np.copy(S_I)
+        sim_out_ch['S_I'] = copy(S_I)
 
         # Calculate NEP_johnson== NEP_J_tot, from Irwin and Hilton taking chsi(I) = 1.
         # Requires so many arguments I'm just coding it here.
@@ -570,10 +573,10 @@ def run_bolos(sim):
         NEP2_J_shunt =(4*kB*Tbath*P_elec*R_shunt/R_bolo) * ((loopgain-1)/(loopgain))**2
         sim_out_ch['NEP_J_bolo']  = np.sqrt(NEP2_J_bolo)
         sim_out_ch['NEP_J_shunt'] = np.sqrt(NEP2_J_shunt)
-        sim_out_ch['NEP_J_tot']   = np.sqrt(NEP2_J_bolo + NEP2_J_shunt)
+        sim_out_ch['NEP_J_total']   = np.sqrt(NEP2_J_bolo + NEP2_J_shunt)
 
         # Calculate NEP_readout, must come after everything else to use "fraction" method
-        NEP_NC_allbutreadout2 = sim_out_ch['NEP_phonon']**2 + sim_out_ch['NEP_photonNC']**2 + sim_out_ch['NEP_J_tot']**2
+        NEP_NC_allbutreadout2 = sim_out_ch['NEP_phonon']**2 + sim_out_ch['NEP_photonNC']**2 + sim_out_ch['NEP_J_total']**2
         if (sim['readout']['method']=='fraction'):
             # readout noise leads to an increase in NEP_NC_total of X%
             # NEP_total**2 = (1+read_frac)**2*(NEP_photon**2 + NEP_phonon**2 + NEP_J_tot**2) = (NEP_photon**2 + NEP_phonon**2 + NEP_J_tot**2 + NEP_readout**2)
@@ -589,10 +592,10 @@ def run_bolos(sim):
         # Subscript "C" means "using horn-horn photon noise correlations"
         # corr_factor is the ratio of those two, and depends on the relative size of various NEP contributions.
         sim_out_ch['NEP_NC_total'] = np.sqrt(sim_out_ch['NEP_readout']**2 + NEP_NC_allbutreadout2)  # ignore pixel correlations in bose noise
-        sim_out_ch['NEP_C_total']  = np.sqrt(sim_out_ch['NEP_readout']**2 + sim_out_ch['NEP_phonon']**2 + sim_out_ch['NEP_photonC']**2 + sim_out_ch['NEP_J_tot']**2)   # include pixel correlations in bose noise
+        sim_out_ch['NEP_C_total']  = np.sqrt(sim_out_ch['NEP_readout']**2 + sim_out_ch['NEP_phonon']**2 + sim_out_ch['NEP_photonC']**2 + sim_out_ch['NEP_J_total']**2)   # include pixel correlations in bose noise
         sim_out_ch['corr_factor'] = sim_out_ch['NEP_C_total']/sim_out_ch['NEP_NC_total']
         #
-        sim_out_ch['NEP_dark'] = np.sqrt(sim_out_ch['NEP_readout']**2 + sim_out_ch['NEP_phonon']**2 + sim_out_ch['NEP_J_tot']**2)
+        sim_out_ch['NEP_dark'] = np.sqrt(sim_out_ch['NEP_readout']**2 + sim_out_ch['NEP_phonon']**2 + sim_out_ch['NEP_J_total']**2)
 
         # Convert NEPs [in Watts/sqrt(Hz)]to single-detector NETs [in K_cmb*sqrt(s)]
         net_conversion_factor    = 1/(sim_out_ch['dpdt']   *np.sqrt(2))
@@ -678,7 +681,7 @@ def print_full_table(sim):
         'dpdt': 1e12,
         'dpdt_rj': 1e12,
         'NEP_readout':1e18,
-        'NEP_J_tot':1e18,
+        'NEP_J_total':1e18,
         'NEP_phonon':1e18,
         'NEP_dark':1e18,
         'NEP_photonNC':1e18,

@@ -157,8 +157,8 @@ def corr_facts(det_pitch, flamb_max=3.):
 
     # Retrieving the value of an environment variable with a default value
     jbolo_path = os.environ.get("JBOLO_PATH", "./")  
-    ApertureFuncFile = jbolo_path+'ApertureFuncs/coherentApertCorr.pkl'
-    StopFuncFile = jbolo_path+'ApertureFuncs/coherentStopCorr.pkl'
+    ApertureFuncFile = os.path.join(jbolo_path,'ApertureFuncs/coherentApertCorr.pkl')
+    StopFuncFile = os.path.join(jbolo_path,'ApertureFuncs/coherentStopCorr.pkl')
 
     # Load the pre-calculated vectors
     p_c_apert,c_apert = pkl.load(open(ApertureFuncFile, "rb"),encoding="latin1")
