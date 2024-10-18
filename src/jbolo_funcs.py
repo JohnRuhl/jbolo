@@ -6,6 +6,7 @@ import os
 from copy import copy #np.copy breaks scalars
 
 from .physics import *
+import jbolo.utils as utils
 
 # physical constants, etc.
 h = 6.6261e-34
